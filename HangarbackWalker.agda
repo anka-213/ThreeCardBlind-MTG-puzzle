@@ -34,13 +34,17 @@ When you play another land, sacrifice City of Traitors.
 data Card : Set where
     walker : Card
     elixir : Card
-    city : Card
+    -- city : Card
 
 record WalkerState : Set where
     field
         isTapped : Bool
         summoningSickness : Bool
         nCounters : ℕ
+
+walkerInitialState : WalkerState
+walkerInitialState = record
+    { isTapped = false ; summoningSickness = true ; nCounters = 1 }
 
 record CityState : Set where
     -- constructor cityState
@@ -53,7 +57,7 @@ record ElixirState : Set where
 CardState : Card → Set
 CardState walker = WalkerState
 CardState elixir = ElixirState
-CardState city = CityState
+-- CardState city = CityState
 
 data CardPosition (c : Card) : Set where
     inHand : CardPosition c
@@ -64,6 +68,10 @@ data CardPosition (c : Card) : Set where
 data Player : Set where
     ozzie : Player
     brigyeetz : Player
+
+opponentOf : Player → Player
+opponentOf ozzie = brigyeetz
+opponentOf brigyeetz = ozzie
 
 record ThopterState : Set where
     field
@@ -100,22 +108,16 @@ data Phase : Set where
 record GameState : Set where
     constructor game
     field
-        ozzieState : PlayerState ozzie
-        brigyeetzState : PlayerState brigyeetz
-        currentPlayer : Player
         phase : Phase
+        currentPlayer : Player
+        currentPlayerState : PlayerState currentPlayer
     opponent : Player
-    opponent with currentPlayer
-    ...| ozzie = brigyeetz
-    ...| brigyeetz = ozzie
-    stateOfPlayer : (p : Player) → PlayerState p
-    stateOfPlayer ozzie = ozzieState
-    stateOfPlayer brigyeetz = brigyeetzState
+    opponent = opponentOf currentPlayer
+    field
+        opponentState : PlayerState opponent
 
-    currentPlayerState : PlayerState currentPlayer
-    currentPlayerState = stateOfPlayer currentPlayer
-    opponentState : PlayerState opponent
-    opponentState = stateOfPlayer opponent
+    -- ozzieState : PlayerState ozzie
+    -- brigyeetzState : PlayerState brigyeetz
 
 open GameState
 
@@ -182,14 +184,53 @@ removeCard c (x ∷ l) (there pf) = x ∷ removeCard c l pf
 drawCard : ∀ s (pf : phase s ≡ draw) → GameState
 drawCard s pf = record s { phase = preCombatMain } -- TODO: Actually draw cards
 
-tapLand : ∀ s (pf : phase s ≡ draw) → GameState
-tapLand s pf = record s { phase = preCombatMain }
+-- end turn = remove mana, flip players, remove summoning sickness, untap, draw
+-- end phase = remove mana, remove damage
 
--- end turn = remove mana, untap, draw
--- end phase = remove mana
+withCurrent : (s : GameState) → (PlayerState (currentPlayer s) → PlayerState (currentPlayer s)) → GameState
+withCurrent s f = record s { currentPlayerState = f (currentPlayerState s)}
+
+-- (pf : isCityTapped (currentPlayerState s) ≡ false)
+tapLand : ∀ {p} → PlayerState p → PlayerState p
+tapLand s = record s { isCityTapped = true ; floatingMana = 2 }
+
+castWalker1 : ∀ {p} → PlayerState p → PlayerState p
+castWalker1 s = record s { floatingMana = 0 ; walker1State = onBattlefield walkerInitialState }
+
+castWalker2 : ∀ {p} → (p ≡ brigyeetz) → PlayerState p → PlayerState p
+castWalker2 refl s = record s { floatingMana = 0 ; card2State = onBattlefield walkerInitialState }
+
+castElixir : ∀ {p} → (p ≡ ozzie) → PlayerState p → PlayerState p
+castElixir refl s = record s { floatingMana = floatingMana s ∸ 1 ; card2State = onBattlefield elixirState }
+
+data canActivateWalker : CardPosition walker → Set where
+  valid : ∀ n → canActivateWalker (onBattlefield (record { isTapped = false ; summoningSickness = false ; nCounters = n}))
+
+canActivateWalker1 : ∀ {p} → p ≡ brigyeetz → CardPosition (card2ForPlayer p) → Set
+canActivateWalker1 refl s = canActivateWalker s
+
+-- activateWalker1 : ∀ {p} → canActivateWalker  →  PlayerState p → PlayerState p
+-- activateWalker1 _ s = record s { floatingMana = 0 ; walker1State = onBattlefield walkerInitialState }
+
+activateWalker : ∀ (s : CardPosition walker) (canActivate : canActivateWalker s) → CardPosition walker
+activateWalker .(onBattlefield (record { isTapped = false ; summoningSickness = false ; nCounters = n })) (valid n) = onBattlefield record { isTapped = true ; summoningSickness = false ; nCounters = 1 + n}
+
+activateWalker1 : ∀ {p} (s : PlayerState p) (canActivate : canActivateWalker (walker1State s)) → PlayerState p
+activateWalker1 s ca = record s { floatingMana = floatingMana s ∸ 1 ; walker1State = activateWalker (walker1State s) ca}
+
+activateWalker2 : ∀ {p} (s : PlayerState p) (isWalker : p ≡ brigyeetz) (canActivate : canActivateWalker1 isWalker (card2State s)) → PlayerState p
+activateWalker2 s refl ca = record s { floatingMana = floatingMana s ∸ 1 ; card2State = activateWalker (card2State s) ca}
+
 
 -- Actions
 data _⇒_ : GameState → GameState → Set where
-    aDraw : ∀ s → (pf : phase s ≡ Phase.draw) → s ⇒ {! drawCard s pf !}
-    aTapLand : ∀ s → (pf : isCityTapped (currentPlayerState s) ≡ false) → s ⇒ {! drawCard s pf !}
+    aDraw : ∀ s → (pf : phase s ≡ Phase.draw) → s ⇒ drawCard s pf
+    aTapLand : ∀ s → (pf : isCityTapped (currentPlayerState s) ≡ false) → s ⇒ withCurrent s tapLand
+    aCastWalker1 : ∀ s → (hasMana : floatingMana (currentPlayerState s) ≥ 2) → (isInHand : walker1State (currentPlayerState s) ≡ inHand) → s ⇒ withCurrent s castWalker1
+    aCastWalker2 : ∀ s (hasWalker2 : currentPlayer s ≡ brigyeetz) (hasMana : floatingMana (currentPlayerState s) ≥ 2) → (isInHand : card2State (currentPlayerState s) ≡ inHand) → s ⇒ withCurrent s (castWalker2 hasWalker2)
+    aCastElixir : ∀ s (hasElixir : currentPlayer s ≡ ozzie) (hasMana : floatingMana (currentPlayerState s) ≥ 1) → (isInHand : card2State (currentPlayerState s) ≡ inHand) → s ⇒ withCurrent s (castElixir hasElixir)
+    -- TODO: Can be opponent too
+    aActivateWalker1 : ∀ s (hasMana : floatingMana (currentPlayerState s) ≥ 1) → (canActivate : canActivateWalker (walker1State (currentPlayerState s))) → s ⇒ record s { currentPlayerState = activateWalker1 (currentPlayerState s) canActivate}
+    aActivateWalker2 : ∀ s (hasWalker2 : currentPlayer s ≡ brigyeetz) (hasMana : floatingMana (currentPlayerState s) ≥ 1) → (canActivate : canActivateWalker1 hasWalker2 (card2State (currentPlayerState s))) → s ⇒ record s { currentPlayerState = activateWalker2 (currentPlayerState s) hasWalker2 canActivate}
     -- playCard
+
