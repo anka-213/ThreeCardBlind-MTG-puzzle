@@ -110,16 +110,22 @@ record GameState : Set where
     field
         phase : Phase
         currentPlayer : Player
-        currentPlayerState : PlayerState currentPlayer
+        ozzieState : PlayerState ozzie
+        brigyeetzState : PlayerState brigyeetz
     opponent : Player
     opponent = opponentOf currentPlayer
-    field
-        opponentState : PlayerState opponent
 
-    -- ozzieState : PlayerState ozzie
-    -- brigyeetzState : PlayerState brigyeetz
+    stateOfPlayer : (p : Player) → PlayerState p
+    stateOfPlayer ozzie = ozzieState
+    stateOfPlayer brigyeetz = brigyeetzState
 
-open GameState
+    currentPlayerState : PlayerState currentPlayer
+    currentPlayerState = stateOfPlayer currentPlayer
+    opponentState : PlayerState opponent
+    opponentState = stateOfPlayer opponent
+
+
+-- open GameState
 
 noThopters : ThopterState
 noThopters = record
@@ -181,14 +187,15 @@ removeCard c (x ∷ l) (there pf) = x ∷ removeCard c l pf
 
 -- Deck order being decided on draw is not valid
 
-drawCard : ∀ s (pf : phase s ≡ draw) → GameState
+drawCard : ∀ s (pf : GameState.phase s ≡ draw) → GameState
 drawCard s pf = record s { phase = preCombatMain } -- TODO: Actually draw cards
 
 -- end turn = remove mana, flip players, remove summoning sickness, untap, draw
 -- end phase = remove mana, remove damage
 
-withCurrent : (s : GameState) → (PlayerState (currentPlayer s) → PlayerState (currentPlayer s)) → GameState
-withCurrent s f = record s { currentPlayerState = f (currentPlayerState s)}
+-- withCurrent : (s : GameState) → (PlayerState (currentPlayer s) → PlayerState (currentPlayer s)) → GameState
+-- withCurrent s f = record s { currentPlayerState = f (currentPlayerState s)}
+
 
 -- (pf : isCityTapped (currentPlayerState s) ≡ false)
 tapLand : ∀ {p} → PlayerState p → PlayerState p
@@ -197,17 +204,14 @@ tapLand s = record s { isCityTapped = true ; floatingMana = 2 }
 castWalker1 : ∀ {p} → PlayerState p → PlayerState p
 castWalker1 s = record s { floatingMana = 0 ; walker1State = onBattlefield walkerInitialState }
 
-castWalker2 : ∀ {p} → (p ≡ brigyeetz) → PlayerState p → PlayerState p
-castWalker2 refl s = record s { floatingMana = 0 ; card2State = onBattlefield walkerInitialState }
+castWalker2 : PlayerState brigyeetz → PlayerState brigyeetz
+castWalker2 s = record s { floatingMana = 0 ; card2State = onBattlefield walkerInitialState }
 
-castElixir : ∀ {p} → (p ≡ ozzie) → PlayerState p → PlayerState p
-castElixir refl s = record s { floatingMana = floatingMana s ∸ 1 ; card2State = onBattlefield elixirState }
+castElixir : PlayerState ozzie → PlayerState ozzie
+castElixir s = record s { floatingMana = floatingMana s ∸ 1 ; card2State = onBattlefield elixirState }
 
 data canActivateWalker : CardPosition walker → Set where
   valid : ∀ n → canActivateWalker (onBattlefield (record { isTapped = false ; summoningSickness = false ; nCounters = n}))
-
-canActivateWalker1 : ∀ {p} → p ≡ brigyeetz → CardPosition (card2ForPlayer p) → Set
-canActivateWalker1 refl s = canActivateWalker s
 
 -- activateWalker1 : ∀ {p} → canActivateWalker  →  PlayerState p → PlayerState p
 -- activateWalker1 _ s = record s { floatingMana = 0 ; walker1State = onBattlefield walkerInitialState }
@@ -218,19 +222,50 @@ activateWalker .(onBattlefield (record { isTapped = false ; summoningSickness = 
 activateWalker1 : ∀ {p} (s : PlayerState p) (canActivate : canActivateWalker (walker1State s)) → PlayerState p
 activateWalker1 s ca = record s { floatingMana = floatingMana s ∸ 1 ; walker1State = activateWalker (walker1State s) ca}
 
-activateWalker2 : ∀ {p} (s : PlayerState p) (isWalker : p ≡ brigyeetz) (canActivate : canActivateWalker1 isWalker (card2State s)) → PlayerState p
-activateWalker2 s refl ca = record s { floatingMana = floatingMana s ∸ 1 ; card2State = activateWalker (card2State s) ca}
+activateWalker2 : ∀ (s : PlayerState brigyeetz) (canActivate : canActivateWalker (card2State s)) → PlayerState brigyeetz
+activateWalker2 s ca = record s { floatingMana = floatingMana s ∸ 1 ; card2State = activateWalker (card2State s) ca}
 
+activateElixir : ∀ (s : PlayerState ozzie) → PlayerState ozzie
+activateElixir s = record s { healthTotal = 5 + healthTotal s ; floatingMana = floatingMana s ∸ 1 ; walker1State = graveyard2deck (walker1State s) ; card2State = inDeck} -- TODO: handle deck order
+  where
+    graveyard2deck : CardPosition walker → CardPosition walker
+    graveyard2deck inHand = inHand
+    graveyard2deck inGraveyard = inDeck -- TODO: Shuffle
+    graveyard2deck inDeck = inDeck -- TODO: Shuffle
+    graveyard2deck (onBattlefield x) = onBattlefield x
+
+
+data isMain : Phase → Set where
+    main1 : isMain preCombatMain
+    main2 : isMain postCombatMain
+
+-- todo: helper to subtract and demand mana
+-- todo: generic helpers for card types and costs
 
 -- Actions
-data _⇒_ : GameState → GameState → Set where
-    aDraw : ∀ s → (pf : phase s ≡ Phase.draw) → s ⇒ drawCard s pf
-    aTapLand : ∀ s → (pf : isCityTapped (currentPlayerState s) ≡ false) → s ⇒ withCurrent s tapLand
-    aCastWalker1 : ∀ s → (hasMana : floatingMana (currentPlayerState s) ≥ 2) → (isInHand : walker1State (currentPlayerState s) ≡ inHand) → s ⇒ withCurrent s castWalker1
-    aCastWalker2 : ∀ s (hasWalker2 : currentPlayer s ≡ brigyeetz) (hasMana : floatingMana (currentPlayerState s) ≥ 2) → (isInHand : card2State (currentPlayerState s) ≡ inHand) → s ⇒ withCurrent s (castWalker2 hasWalker2)
-    aCastElixir : ∀ s (hasElixir : currentPlayer s ≡ ozzie) (hasMana : floatingMana (currentPlayerState s) ≥ 1) → (isInHand : card2State (currentPlayerState s) ≡ inHand) → s ⇒ withCurrent s (castElixir hasElixir)
-    -- TODO: Can be opponent too
-    aActivateWalker1 : ∀ s (hasMana : floatingMana (currentPlayerState s) ≥ 1) → (canActivate : canActivateWalker (walker1State (currentPlayerState s))) → s ⇒ record s { currentPlayerState = activateWalker1 (currentPlayerState s) canActivate}
-    aActivateWalker2 : ∀ s (hasWalker2 : currentPlayer s ≡ brigyeetz) (hasMana : floatingMana (currentPlayerState s) ≥ 1) → (canActivate : canActivateWalker1 hasWalker2 (card2State (currentPlayerState s))) → s ⇒ record s { currentPlayerState = activateWalker2 (currentPlayerState s) hasWalker2 canActivate}
-    -- playCard
+module _ (s : GameState) where
+    open GameState s
+    setPlayerState : ∀ (p : Player) → PlayerState p → GameState
+    setPlayerState ozzie s1 = record s { ozzieState = s1}
+    setPlayerState brigyeetz s1 = record s { brigyeetzState = s1}
+    withPlayer : ∀ (p : Player) → (PlayerState p → PlayerState p) → GameState
+    withPlayer ozzie f = record s { ozzieState = f ozzieState}
+    withPlayer brigyeetz f = record s { brigyeetzState = f brigyeetzState}
+        -- record s { currentPlayerState = f (currentPlayerState s)}
+
+    inMainPhase : Set
+    inMainPhase = isMain phase
+    -- TODO: Separate actions from results, so they can be searched
+    data Action : GameState → Set where
+        aDraw : (pf : GameState.phase s ≡ Phase.draw) → Action (drawCard s pf)
+        aTapLand : ∀ p → (pf : isCityTapped (stateOfPlayer p) ≡ false) → Action (withPlayer p tapLand)
+        aCastWalker1 : ∀ p → p ≡ currentPlayer → inMainPhase → (hasMana : floatingMana (stateOfPlayer p) ≥ 2) → (isInHand : walker1State (stateOfPlayer p) ≡ inHand) → Action (withPlayer p castWalker1)
+        aCastWalker2 : currentPlayer ≡ brigyeetz → inMainPhase → (hasMana : floatingMana brigyeetzState ≥ 2) → (isInHand : card2State brigyeetzState ≡ inHand) → Action (withPlayer brigyeetz castWalker2)
+        aCastElixir : currentPlayer ≡ ozzie → inMainPhase → (hasMana : floatingMana ozzieState ≥ 1) → (isInHand : card2State ozzieState ≡ inHand) → Action (withPlayer ozzie castElixir)
+        aActivateWalker1 : ∀ p (hasMana : floatingMana (stateOfPlayer p) ≥ 1) → (canActivate : canActivateWalker (walker1State (stateOfPlayer p))) → Action (setPlayerState p (activateWalker1 (stateOfPlayer p) canActivate))
+        aActivateWalker2 : ∀ (hasMana : floatingMana brigyeetzState ≥ 1) → (canActivate : canActivateWalker (card2State brigyeetzState)) → Action (setPlayerState brigyeetz (activateWalker2 brigyeetzState canActivate))
+        aActivateElixir : (hasMana : floatingMana ozzieState ≥ 2) → (canActivate : card2State ozzieState ≡ onBattlefield elixirState) → Action (withPlayer ozzie activateElixir)
+        -- playCard
+    _⇒_ : GameState → Set
+    _⇒_ = Action
 
