@@ -97,10 +97,14 @@ record PlayerState (p : Player) : Set where
 
 open PlayerState
 
+data CombatStep : Set where
+    DeclareAttackers : CombatStep
+    DeclareDefenders : CombatStep
+
 data Phase : Set where
     draw : Phase
     preCombatMain : Phase
-    combat : Phase
+    combat : CombatStep → Phase
     postCombatMain : Phase
     cleanup : Phase
 
@@ -255,6 +259,9 @@ module _ (s : GameState) where
 
     inMainPhase : Set
     inMainPhase = isMain phase
+
+    endPhase : GameState
+    endPhase = {!   !}
     -- TODO: Separate actions from results, so they can be searched
     data Action : GameState → Set where
         aDraw : (pf : GameState.phase s ≡ Phase.draw) → Action (drawCard s pf)
@@ -265,7 +272,15 @@ module _ (s : GameState) where
         aActivateWalker1 : ∀ p (hasMana : floatingMana (stateOfPlayer p) ≥ 1) → (canActivate : canActivateWalker (walker1State (stateOfPlayer p))) → Action (setPlayerState p (activateWalker1 (stateOfPlayer p) canActivate))
         aActivateWalker2 : ∀ (hasMana : floatingMana brigyeetzState ≥ 1) → (canActivate : canActivateWalker (card2State brigyeetzState)) → Action (setPlayerState brigyeetz (activateWalker2 brigyeetzState canActivate))
         aActivateElixir : (hasMana : floatingMana ozzieState ≥ 2) → (canActivate : card2State ozzieState ≡ onBattlefield elixirState) → Action (withPlayer ozzie activateElixir)
+        aEndPhase : ∀ p → p ≡ currentPlayer → Action endPhase
+        aDoNothing : ∀ p → p ≡ currentPlayer → Action endPhase
+        -- aCombat
         -- playCard
     _⇒_ : GameState → Set
     _⇒_ = Action
 
+
+-- TODO: Handle priority
+-- But do not need stack
+
+-- Game = sequence of p1 action followed by p2 action, but multiple if priority is held.
