@@ -2,11 +2,15 @@
 open import Relation.Binary.PropositionalEquality
 open import Function
 open import Data.Nat
-open import Data.Bool
+open import Data.Unit.Base hiding (_≤_)
+open import Data.Bool hiding (_≤_)
 open import Data.Product
 open import Data.List
 
 {-
+This puzzle: https://www.youtube.com/watch?v=hdaiKwKN50U
+Discussion: https://discord.com/channels/1051702336113889330/1238137896548958289
+
 https://scryfall.com/card/cmm/951/hangarback-walker
 Hangarback Walker :manax::manax:
 Artifact Creature — Construct
@@ -94,12 +98,30 @@ record PlayerState (p : Player) : Set where
         -- deck : List Card
         -- graveyard : List Card
         -- board : PossibleBoard p
+    open ThopterState thopters public
 
 open PlayerState
 
+-- TODO: make this depend on the rest of the state
+record AttackerInfo : Set where
+    field
+        thopters : ℕ
+        walker1Attack : Bool
+        walker2Attack : Bool
+
+-- TODO: fix blockers
+-- TODO: Declare blocker order
+record BlockerInfo (a : AttackerInfo) : Set where
+    field
+        thopters : ℕ
+        walker1Attack : Bool
+        walker2Attack : Bool
+
+
 data CombatStep : Set where
-    DeclareAttackers : CombatStep
-    DeclareDefenders : CombatStep
+    CombatStart : CombatStep
+    DeclaredAttackers : AttackerInfo → CombatStep
+    DeclaredBlockers : (a : AttackerInfo) → BlockerInfo a → CombatStep
 
 data Phase : Set where
     draw : Phase
@@ -127,6 +149,7 @@ record GameState : Set where
     activePlayerState = stateOfPlayer activePlayer
     opponentState : PlayerState opponent
     opponentState = stateOfPlayer opponent
+
 
 
 -- open GameState
@@ -217,6 +240,9 @@ castElixir s = record s { floatingMana = floatingMana s ∸ 1 ; card2State = onB
 data canActivateWalker : CardPosition walker → Set where
   valid : ∀ n → canActivateWalker (onBattlefield (record { isTapped = false ; summoningSickness = false ; nCounters = n}))
 
+canActivateWalker2 : ∀ {p} → p ≡ brigyeetz → CardPosition (card2ForPlayer p) → Set
+canActivateWalker2 refl s = canActivateWalker s
+
 -- activateWalker1 : ∀ {p} → canActivateWalker  →  PlayerState p → PlayerState p
 -- activateWalker1 _ s = record s { floatingMana = 0 ; walker1State = onBattlefield walkerInitialState }
 
@@ -246,17 +272,55 @@ data isMain : Phase → Set where
 -- todo: helper to subtract and demand mana
 -- todo: generic helpers for card types and costs
 
+-- TODO: prevent actions in between declare blockers and assign order
+
+-- doNothing : (s : GameState) (p : Player) → GameState
+-- doNothing (game draw activePlayer ozzieState brigyeetzState) p = {!   !}
+-- doNothing (game preCombatMain activePlayer ozzieState brigyeetzState) p = {!   !}
+-- doNothing (game (combat x) activePlayer ozzieState brigyeetzState) p = {!   !}
+-- doNothing (game postCombatMain activePlayer ozzieState brigyeetzState) p = {!   !}
+-- doNothing (game cleanup activePlayer ozzieState brigyeetzState) p = {!   !}
+
+record AttackersValid (s : GameState) (a : AttackerInfo) : Set where
+    field
+        thoptersValid : AttackerInfo.thopters a ≤ PlayerState.untappedUnsickThopters (GameState.activePlayerState s)
+        walker1Valid : if AttackerInfo.walker1Attack a then canActivateWalker (walker1State (GameState.activePlayerState s)) else ⊤
+        walker2Valid : if AttackerInfo.walker2Attack a then Σ[ pf ∈ GameState.activePlayer s ≡ brigyeetz ] canActivateWalker2 pf (card2State (GameState.activePlayerState s)) else ⊤
+
+record BlockerssValid (s : GameState) (a : AttackerInfo) (b : BlockerInfo a) : Set where
+    field
+
+mapCard : ∀ {c} → (CardState c → CardState c) → CardPosition c → CardPosition c
+mapCard f inHand = inHand
+mapCard f inGraveyard = inGraveyard
+mapCard f inDeck = inDeck
+mapCard f (onBattlefield x) = onBattlefield (f x)
+
+tapCard : ∀ {c} → CardState c → CardState c
+tapCard {walker} st = record st { isTapped = true }
+tapCard {elixir} st = st
+
+tapAttackers : ∀ {p} (s : PlayerState p) (a : AttackerInfo) → PlayerState p
+tapAttackers s a = record s
+    { thopters = record (thopters s)
+        { untappedUnsickThopters = untappedUnsickThopters s ∸ AttackerInfo.thopters a
+        ; tappedThopters = tappedThopters s + AttackerInfo.thopters a
+        }
+    ; walker1State = if AttackerInfo.walker1Attack a then mapCard tapCard (walker1State s) else walker1State s
+    ; card2State = if AttackerInfo.walker2Attack a then mapCard tapCard (card2State s) else card2State s
+    }
+
 -- Actions
 module _ (s : GameState) where
     open GameState s
+        -- record s { activePlayerState = f (activePlayerState s)}
     setPlayerState : ∀ (p : Player) → PlayerState p → GameState
     setPlayerState ozzie s1 = record s { ozzieState = s1}
     setPlayerState brigyeetz s1 = record s { brigyeetzState = s1}
+
     withPlayer : ∀ (p : Player) → (PlayerState p → PlayerState p) → GameState
     withPlayer ozzie f = record s { ozzieState = f ozzieState}
     withPlayer brigyeetz f = record s { brigyeetzState = f brigyeetzState}
-        -- record s { activePlayerState = f (activePlayerState s)}
-
     inMainPhase : Set
     inMainPhase = isMain phase
 
@@ -272,7 +336,9 @@ module _ (s : GameState) where
         aActivateWalker2 : ∀ (hasMana : floatingMana brigyeetzState ≥ 1) → (canActivate : canActivateWalker (card2State brigyeetzState)) → Action brigyeetz
         aActivateElixir : (hasMana : floatingMana ozzieState ≥ 2) → (canActivate : card2State ozzieState ≡ onBattlefield elixirState) → Action ozzie
         aEndPhase : ∀ {p} → p ≡ activePlayer → Action p
-        aDoNothing : ∀ {p} → Action p
+        aDeclareAttackers : ∀ {p} → phase ≡ combat CombatStart → p ≡ activePlayer → (atcks : AttackerInfo) → (AttackersValid s atcks) → Action p
+        aDeclareBlockers : ∀ {p} (atcks : AttackerInfo) → phase ≡ combat (DeclaredAttackers atcks) → p ≡ opponent → (blcks : BlockerInfo atcks) → (AttackersValid s atcks) → Action p
+        -- aDoNothing : ∀ {p} → Action p
         -- aCombat
         -- playCard
     performAction : ∀ p → Action p → GameState
@@ -284,10 +350,14 @@ module _ (s : GameState) where
     performAction p (aActivateWalker1 hasMana canActivate) = setPlayerState p (activateWalker1 (stateOfPlayer p) canActivate)
     performAction p (aActivateWalker2 hasMana canActivate) = setPlayerState brigyeetz (activateWalker2 brigyeetzState canActivate)
     performAction p (aActivateElixir hasMana canActivate) = withPlayer ozzie activateElixir
+    performAction p (aDeclareAttackers phs curPl atcks atcksValid) = record s { phase = combat (DeclaredAttackers atcks) }
+    performAction p (aDeclareBlockers atcks phs curPl blcks atcksValid) = record s { phase = combat (DeclaredBlockers atcks blcks) }
     performAction p (aEndPhase isActive) = endPhase
-    performAction p (aDoNothing) = {!   !}
+    -- performAction p (aDoNothing) = {! doNothing s p  !}
     -- _⇒_ : GameState → Set
     -- _⇒_ = Action
+
+-- Possible simpl: each player performs any number of actions in each phase, first active player, then opponent
 
 
 -- TODO: Handle priority
