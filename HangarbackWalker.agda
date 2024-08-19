@@ -324,8 +324,8 @@ untapCard : ∀ {c} → CardState c → CardState c
 untapCard {walker} st = record st { isTapped = false ; summoningSickness = false }
 untapCard {elixir} st = st
 
-tapAttackers : ∀ {p} (s : PlayerState p) (a : AttackerInfo) → PlayerState p
-tapAttackers s a = record s
+tapAttackers : ∀ {p} (a : AttackerInfo) (s : PlayerState p) → PlayerState p
+tapAttackers a s = record s
     { thopters = record (thopters s)
         { untappedUnsickThopters = untappedUnsickThopters s ∸ AttackerInfo.thopters a
         ; tappedThopters = tappedThopters s + AttackerInfo.thopters a
@@ -357,11 +357,28 @@ untapActivePlayer s = withPlayer s (GameState.activePlayer s) untapPlayer
 endTurn : GameState → GameState
 endTurn s = untapActivePlayer (record (changePhase draw s) { activePlayer = opponentOf (GameState.activePlayer s)})
 
+-- TODO: Disallow invalid states
+walkerSize : ∀ {c} → CardPosition c → ℕ
+walkerSize {walker} inHand = 0
+walkerSize {walker} inGraveyard = 0
+walkerSize {walker} inDeck = 0
+walkerSize {walker} (onBattlefield x) = WalkerState.nCounters x
+walkerSize {elixir} s = 0
 
-resolveCombat : GameState → GameState
-resolveCombat = {!   !}
+
+reduceHealthTotal : ∀ {p} → ℕ → PlayerState p → PlayerState p
+reduceHealthTotal n s = record s { healthTotal = healthTotal s ∸ n }
+takeDamage : ∀ {p} (a : AttackerInfo) → PlayerState p → PlayerState (opponentOf p) → PlayerState (opponentOf p)
+takeDamage record { thopters = n ; walker1Attack = false ; walker2Attack = false } pl s = reduceHealthTotal n s
+takeDamage record { thopters = n ; walker1Attack = false ; walker2Attack = true } pl s = reduceHealthTotal (n + walkerSize (card2State pl)) s
+takeDamage record { thopters = n ; walker1Attack = true ; walker2Attack = false } pl s = reduceHealthTotal (n + walkerSize (walker1State pl )) s
+takeDamage record { thopters = n ; walker1Attack = true ; walker2Attack = true } pl s = reduceHealthTotal (n + walkerSize (walker1State pl) + walkerSize (card2State pl)) s
+
+resolveCombat : ∀ a → (b : BlockerInfo a) → (s : GameState) → (GameState.phase s ≡ combat (DeclaredBlockers a b)) → GameState
+resolveCombat a b s r = withPlayer s opponent (takeDamage a (activePlayerState))
+  where open GameState s
 -- TODO: Handle blockers
--- TODO: Allow choosing order of attacking
+-- TODO: Allow choosing order of attacking blockers
 
 
 endPhase : GameState → GameState
@@ -369,7 +386,7 @@ endPhase s@record { phase = draw } = drawCard s refl
 endPhase s@record { phase = preCombatMain } = record s { phase = combat CombatStart }
 endPhase s@record { phase = combat CombatStart } = record s { phase = postCombatMain } -- If no attackers are declared, skip combat
 endPhase s@record { phase = combat (DeclaredAttackers a) } = record s { phase = combat (DeclaredBlockers a (noBlockers a)) }
-endPhase s@record { phase = combat (DeclaredBlockers a b) } = resolveCombat s
+endPhase s@record { phase = combat (DeclaredBlockers a b) } = resolveCombat a b s refl
 endPhase s@record { phase = postCombatMain } = endTurn s
 
 
@@ -408,8 +425,8 @@ module _ (s : GameState) where
     performAction p (aActivateWalker1 hasMana canActivate) = setPlayerState s p (activateWalker1 (stateOfPlayer p) canActivate)
     performAction p (aActivateWalker2 hasMana canActivate) = setPlayerState s brigyeetz (activateWalker2 brigyeetzState canActivate)
     performAction p (aActivateElixir hasMana canActivate) = withPlayer s ozzie activateElixir
-    performAction p (aDeclareAttackers phs curPl atcks atcksValid) = record s { phase = combat (DeclaredAttackers atcks) ; lastPlayerPassed = false}
-    performAction p (aDeclareBlockers atcks phs curPl blcks atcksValid) = record s { phase = combat (DeclaredBlockers atcks blcks) ; lastPlayerPassed = false}
+    performAction p (aDeclareAttackers phs curPl atcks atcksValid) = withPlayer (changePhase (combat (DeclaredAttackers atcks)) s) activePlayer (tapAttackers atcks) -- record s { phase =  ; lastPlayerPassed = false}
+    performAction p (aDeclareBlockers atcks phs curPl blcks atcksValid) = changePhase (combat (DeclaredBlockers atcks blcks)) s
     performAction p (aEndPhase isActive) = endPhase s
     performAction p (aDoNothing) = doNothing p s
     -- _⇒_ : GameState → Set
