@@ -6,6 +6,8 @@ open import Data.Unit.Base hiding (_≤_)
 open import Data.Bool hiding (_≤_)
 open import Data.Product
 open import Data.List
+open import Relation.Binary.Construct.Closure.ReflexiveTransitive
+open import Relation.Binary.Construct.Closure.ReflexiveTransitive.Properties
 
 {-
 This puzzle: https://www.youtube.com/watch?v=hdaiKwKN50U
@@ -117,6 +119,12 @@ record BlockerInfo (a : AttackerInfo) : Set where
         walker1Attack : Bool
         walker2Attack : Bool
 
+noBlockers : ∀ a → BlockerInfo a
+noBlockers a = record
+    { thopters = 0
+    ; walker1Attack = false
+    ; walker2Attack = false
+    }
 
 data CombatStep : Set where
     CombatStart : CombatStep
@@ -128,7 +136,6 @@ data Phase : Set where
     preCombatMain : Phase
     combat : CombatStep → Phase
     postCombatMain : Phase
-    cleanup : Phase
 
 
 record GameState : Set where
@@ -138,6 +145,7 @@ record GameState : Set where
         activePlayer : Player
         ozzieState : PlayerState ozzie
         brigyeetzState : PlayerState brigyeetz
+        lastPlayerPassed : Bool
     opponent : Player
     opponent = opponentOf activePlayer
 
@@ -181,7 +189,8 @@ brigyeetzStart = record
     ; card2State = inHand
     }
 
-
+initialGameState : Player → GameState
+initialGameState p = game draw p ozzieStart brigyeetzStart false
 
 -- drawCard2 : ∀ {p} → PossibleDeck p → Card × PossibleDeck p
 -- drawCard2 walkerElixir = walker , elixir
@@ -288,7 +297,8 @@ record AttackersValid (s : GameState) (a : AttackerInfo) : Set where
         walker2Valid : if AttackerInfo.walker2Attack a then Σ[ pf ∈ GameState.activePlayer s ≡ brigyeetz ] canActivateWalker2 pf (card2State (GameState.activePlayerState s)) else ⊤
 
 record BlockerssValid (s : GameState) (a : AttackerInfo) (b : BlockerInfo a) : Set where
-    field
+    -- field
+    -- TODO implement this
 
 mapCard : ∀ {c} → (CardState c → CardState c) → CardPosition c → CardPosition c
 mapCard f inHand = inHand
@@ -310,22 +320,45 @@ tapAttackers s a = record s
     ; card2State = if AttackerInfo.walker2Attack a then mapCard tapCard (card2State s) else card2State s
     }
 
+clearMana : ∀ {p} → PlayerState p → PlayerState p
+clearMana s = record s { floatingMana = 0 }
+
+changePhase : Phase → GameState → GameState
+changePhase ph s = record s { phase = ph ; ozzieState = clearMana (GameState.ozzieState s) ; brigyeetzState = clearMana (GameState.brigyeetzState s) ; lastPlayerPassed = false}
+
+untapActivePlayer : GameState → GameState
+untapActivePlayer = {!   !}
+
+endTurn : GameState → GameState
+endTurn s = untapActivePlayer (record (changePhase draw s) { activePlayer = opponentOf (GameState.activePlayer s)})
+
+endPhase : GameState → GameState
+endPhase s@record { phase = draw } = drawCard s refl
+endPhase s@record { phase = preCombatMain } = record s { phase = combat CombatStart }
+endPhase s@record { phase = combat CombatStart } = record s { phase = postCombatMain } -- If no attackers are declared, skip combat
+endPhase s@record { phase = combat (DeclaredAttackers a) } = record s { phase = combat (DeclaredBlockers a (noBlockers a)) }
+endPhase s@record { phase = combat (DeclaredBlockers a b) } = {! resolveCombat s  !}
+endPhase s@record { phase = postCombatMain } = endTurn s
+
+
+doNothing : ∀ (p : Player) (s : GameState) → GameState
+doNothing p s@record {lastPlayerPassed = false} = record s { lastPlayerPassed = true }
+doNothing p s@record {lastPlayerPassed = true} = endPhase (record s { lastPlayerPassed = false })
+
 -- Actions
 module _ (s : GameState) where
     open GameState s
         -- record s { activePlayerState = f (activePlayerState s)}
     setPlayerState : ∀ (p : Player) → PlayerState p → GameState
-    setPlayerState ozzie s1 = record s { ozzieState = s1}
-    setPlayerState brigyeetz s1 = record s { brigyeetzState = s1}
+    setPlayerState ozzie s1 = record s { ozzieState = s1 ; lastPlayerPassed = false}
+    setPlayerState brigyeetz s1 = record s { brigyeetzState = s1 ; lastPlayerPassed = false}
 
     withPlayer : ∀ (p : Player) → (PlayerState p → PlayerState p) → GameState
-    withPlayer ozzie f = record s { ozzieState = f ozzieState}
-    withPlayer brigyeetz f = record s { brigyeetzState = f brigyeetzState}
+    withPlayer ozzie f = record s { ozzieState = f ozzieState ; lastPlayerPassed = false}
+    withPlayer brigyeetz f = record s { brigyeetzState = f brigyeetzState ; lastPlayerPassed = false}
     inMainPhase : Set
     inMainPhase = isMain phase
 
-    endPhase : GameState
-    endPhase = {!   !}
     data Action : Player → Set where
         aDraw : ∀ {p} → (pf : GameState.phase s ≡ Phase.draw) → Action p
         aTapLand : ∀ {p} → (pf : isCityTapped (stateOfPlayer p) ≡ false) → Action p
@@ -338,24 +371,76 @@ module _ (s : GameState) where
         aEndPhase : ∀ {p} → p ≡ activePlayer → Action p
         aDeclareAttackers : ∀ {p} → phase ≡ combat CombatStart → p ≡ activePlayer → (atcks : AttackerInfo) → (AttackersValid s atcks) → Action p
         aDeclareBlockers : ∀ {p} (atcks : AttackerInfo) → phase ≡ combat (DeclaredAttackers atcks) → p ≡ opponent → (blcks : BlockerInfo atcks) → (AttackersValid s atcks) → Action p
-        -- aDoNothing : ∀ {p} → Action p
+        aDoNothing : ∀ {p} → Action p
         -- aCombat
         -- playCard
     performAction : ∀ p → Action p → GameState
     performAction p (aDraw pf) = drawCard s pf
-    performAction p (aTapLand pf) = (withPlayer p tapLand)
+    performAction p (aTapLand pf) = withPlayer p tapLand
     performAction p (aCastWalker1 curPl inMain hasMana isInHand) = withPlayer p castWalker1
     performAction p (aCastWalker2 currBrigyeetz inMain hasMana isInHand) = withPlayer brigyeetz castWalker2
     performAction p (aCastElixir currOzzie inMain hasMana isInHand) = withPlayer ozzie castElixir
     performAction p (aActivateWalker1 hasMana canActivate) = setPlayerState p (activateWalker1 (stateOfPlayer p) canActivate)
     performAction p (aActivateWalker2 hasMana canActivate) = setPlayerState brigyeetz (activateWalker2 brigyeetzState canActivate)
     performAction p (aActivateElixir hasMana canActivate) = withPlayer ozzie activateElixir
-    performAction p (aDeclareAttackers phs curPl atcks atcksValid) = record s { phase = combat (DeclaredAttackers atcks) }
-    performAction p (aDeclareBlockers atcks phs curPl blcks atcksValid) = record s { phase = combat (DeclaredBlockers atcks blcks) }
-    performAction p (aEndPhase isActive) = endPhase
-    -- performAction p (aDoNothing) = {! doNothing s p  !}
+    performAction p (aDeclareAttackers phs curPl atcks atcksValid) = record s { phase = combat (DeclaredAttackers atcks) ; lastPlayerPassed = false}
+    performAction p (aDeclareBlockers atcks phs curPl blcks atcksValid) = record s { phase = combat (DeclaredBlockers atcks blcks) ; lastPlayerPassed = false}
+    performAction p (aEndPhase isActive) = endPhase s
+    performAction p (aDoNothing) = doNothing p s
     -- _⇒_ : GameState → Set
     -- _⇒_ = Action
+
+
+    data Step : (s : GameState) → Set where
+        doAction : ∀ p → (a : Action p) → Step (performAction p a)
+
+
+gameExample : GameState → GameState → Set
+gameExample = Star Step
+
+
+ex1 : gameExample (initialGameState ozzie) {!   !}
+ex1 = begin
+    initialGameState ozzie ⟶⟨ doAction ozzie (aDraw refl) ⟩
+    drawCard (initialGameState ozzie) refl ⟶⟨ doAction ozzie (aTapLand refl) ⟩
+    withPlayer (drawCard (initialGameState ozzie) refl) ozzie tapLand ⟶⟨ doAction ozzie (aCastWalker1 refl main1 (s≤s (s≤s z≤n)) refl) ⟩
+    game preCombatMain ozzie (record
+        { healthTotal = 20
+        ; floatingMana = 0
+        ; thopters = noThopters
+        ; isCityTapped = true
+        ; walker1State = onBattlefield walkerInitialState
+        ; card2State = inHand
+        }) (record
+        { healthTotal = 20
+        ; floatingMana = 0
+        ; thopters = noThopters
+        ; isCityTapped = false
+        ; walker1State = inHand
+        ; card2State = inHand
+        }) false ⟶⟨ doAction ozzie (aEndPhase refl) ⟩
+  {!   !} ⟶⟨ doAction {!   !} {!   !} ⟩
+--   {!   !} ⟶⟨ {!   !} ⟩
+    {!   !} ∎
+    where
+        open StarReasoning Step
+
+-- -- TODO: Proper priority
+-- data PlayerStep (p : Player) : GameState → GameState → Set where
+--     singleStep :
+
+isAlive : Player → GameState → Set
+isAlive p s = healthTotal (GameState.stateOfPlayer s p) > 0
+opponentHasLost : Player → GameState → Set
+opponentHasLost p s = healthTotal (GameState.stateOfPlayer s (opponentOf p)) ≡ 0
+
+losingGame : Player → GameState → Set
+data winningGame (p : Player) (s : GameState) : Set where
+    hasWon : opponentHasLost p s → winningGame p s
+    willWin : isAlive p s → Σ[ bestAction ∈ Action s p ] losingGame (opponentOf p) (performAction s p bestAction) → winningGame p s
+losingGame p st = ∀ action → winningGame (opponentOf p) (performAction st p action)
+
+-- TODO: isDraw = ¬ losingGame ∧ ¬ winningGame
 
 -- Possible simpl: each player performs any number of actions in each phase, first active player, then opponent
 
@@ -364,3 +449,5 @@ module _ (s : GameState) where
 -- But do not need stack
 
 -- Game = sequence of p1 action followed by p2 action, but multiple if priority is held.
+
+-- Goal: Prove isDraw or losingGame or winningGame for both initial games
