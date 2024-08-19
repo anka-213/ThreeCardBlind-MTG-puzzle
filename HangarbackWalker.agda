@@ -159,6 +159,16 @@ record GameState : Set where
     opponentState = stateOfPlayer opponent
 
 
+module _ (s : GameState) where
+    open GameState s
+        -- record s { activePlayerState = f (activePlayerState s)}
+    setPlayerState : ∀ (p : Player) → PlayerState p → GameState
+    setPlayerState ozzie s1 = record s { ozzieState = s1 ; lastPlayerPassed = false}
+    setPlayerState brigyeetz s1 = record s { brigyeetzState = s1 ; lastPlayerPassed = false}
+
+    withPlayer : ∀ (p : Player) → (PlayerState p → PlayerState p) → GameState
+    withPlayer ozzie f = record s { ozzieState = f ozzieState ; lastPlayerPassed = false}
+    withPlayer brigyeetz f = record s { brigyeetzState = f brigyeetzState ; lastPlayerPassed = false}
 
 -- open GameState
 
@@ -310,6 +320,10 @@ tapCard : ∀ {c} → CardState c → CardState c
 tapCard {walker} st = record st { isTapped = true }
 tapCard {elixir} st = st
 
+untapCard : ∀ {c} → CardState c → CardState c
+untapCard {walker} st = record st { isTapped = false ; summoningSickness = false }
+untapCard {elixir} st = st
+
 tapAttackers : ∀ {p} (s : PlayerState p) (a : AttackerInfo) → PlayerState p
 tapAttackers s a = record s
     { thopters = record (thopters s)
@@ -326,18 +340,36 @@ clearMana s = record s { floatingMana = 0 }
 changePhase : Phase → GameState → GameState
 changePhase ph s = record s { phase = ph ; ozzieState = clearMana (GameState.ozzieState s) ; brigyeetzState = clearMana (GameState.brigyeetzState s) ; lastPlayerPassed = false}
 
+untapPlayer : ∀ {p} → PlayerState p → PlayerState p
+untapPlayer s = record s
+    { thopters = record
+        { tappedThopters = 0
+        ; untappedUnsickThopters = tappedThopters s + summoningSickThopters s + untappedUnsickThopters s
+        ; summoningSickThopters = 0
+        }
+    ; walker1State = mapCard untapCard (walker1State s)
+    ; card2State = mapCard untapCard (card2State s)
+    }
+
 untapActivePlayer : GameState → GameState
-untapActivePlayer = {!   !}
+untapActivePlayer s = withPlayer s (GameState.activePlayer s) untapPlayer
 
 endTurn : GameState → GameState
 endTurn s = untapActivePlayer (record (changePhase draw s) { activePlayer = opponentOf (GameState.activePlayer s)})
+
+
+resolveCombat : GameState → GameState
+resolveCombat = {!   !}
+-- TODO: Handle blockers
+-- TODO: Allow choosing order of attacking
+
 
 endPhase : GameState → GameState
 endPhase s@record { phase = draw } = drawCard s refl
 endPhase s@record { phase = preCombatMain } = record s { phase = combat CombatStart }
 endPhase s@record { phase = combat CombatStart } = record s { phase = postCombatMain } -- If no attackers are declared, skip combat
 endPhase s@record { phase = combat (DeclaredAttackers a) } = record s { phase = combat (DeclaredBlockers a (noBlockers a)) }
-endPhase s@record { phase = combat (DeclaredBlockers a b) } = {! resolveCombat s  !}
+endPhase s@record { phase = combat (DeclaredBlockers a b) } = resolveCombat s
 endPhase s@record { phase = postCombatMain } = endTurn s
 
 
@@ -349,13 +381,6 @@ doNothing p s@record {lastPlayerPassed = true} = endPhase (record s { lastPlayer
 module _ (s : GameState) where
     open GameState s
         -- record s { activePlayerState = f (activePlayerState s)}
-    setPlayerState : ∀ (p : Player) → PlayerState p → GameState
-    setPlayerState ozzie s1 = record s { ozzieState = s1 ; lastPlayerPassed = false}
-    setPlayerState brigyeetz s1 = record s { brigyeetzState = s1 ; lastPlayerPassed = false}
-
-    withPlayer : ∀ (p : Player) → (PlayerState p → PlayerState p) → GameState
-    withPlayer ozzie f = record s { ozzieState = f ozzieState ; lastPlayerPassed = false}
-    withPlayer brigyeetz f = record s { brigyeetzState = f brigyeetzState ; lastPlayerPassed = false}
     inMainPhase : Set
     inMainPhase = isMain phase
 
@@ -376,13 +401,13 @@ module _ (s : GameState) where
         -- playCard
     performAction : ∀ p → Action p → GameState
     performAction p (aDraw pf) = drawCard s pf
-    performAction p (aTapLand pf) = withPlayer p tapLand
-    performAction p (aCastWalker1 curPl inMain hasMana isInHand) = withPlayer p castWalker1
-    performAction p (aCastWalker2 currBrigyeetz inMain hasMana isInHand) = withPlayer brigyeetz castWalker2
-    performAction p (aCastElixir currOzzie inMain hasMana isInHand) = withPlayer ozzie castElixir
-    performAction p (aActivateWalker1 hasMana canActivate) = setPlayerState p (activateWalker1 (stateOfPlayer p) canActivate)
-    performAction p (aActivateWalker2 hasMana canActivate) = setPlayerState brigyeetz (activateWalker2 brigyeetzState canActivate)
-    performAction p (aActivateElixir hasMana canActivate) = withPlayer ozzie activateElixir
+    performAction p (aTapLand pf) = withPlayer s p tapLand
+    performAction p (aCastWalker1 curPl inMain hasMana isInHand) = withPlayer s p castWalker1
+    performAction p (aCastWalker2 currBrigyeetz inMain hasMana isInHand) = withPlayer s brigyeetz castWalker2
+    performAction p (aCastElixir currOzzie inMain hasMana isInHand) = withPlayer s ozzie castElixir
+    performAction p (aActivateWalker1 hasMana canActivate) = setPlayerState s p (activateWalker1 (stateOfPlayer p) canActivate)
+    performAction p (aActivateWalker2 hasMana canActivate) = setPlayerState s brigyeetz (activateWalker2 brigyeetzState canActivate)
+    performAction p (aActivateElixir hasMana canActivate) = withPlayer s ozzie activateElixir
     performAction p (aDeclareAttackers phs curPl atcks atcksValid) = record s { phase = combat (DeclaredAttackers atcks) ; lastPlayerPassed = false}
     performAction p (aDeclareBlockers atcks phs curPl blcks atcksValid) = record s { phase = combat (DeclaredBlockers atcks blcks) ; lastPlayerPassed = false}
     performAction p (aEndPhase isActive) = endPhase s
