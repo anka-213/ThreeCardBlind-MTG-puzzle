@@ -349,6 +349,7 @@ untapPlayer s = record s
         }
     ; walker1State = mapCard untapCard (walker1State s)
     ; card2State = mapCard untapCard (card2State s)
+    ; isCityTapped = false
     }
 
 untapActivePlayer : GameState → GameState
@@ -383,10 +384,10 @@ resolveCombat a b s r = withPlayer s opponent (takeDamage a (activePlayerState))
 
 endPhase : GameState → GameState
 endPhase s@record { phase = draw } = drawCard s refl
-endPhase s@record { phase = preCombatMain } = record s { phase = combat CombatStart }
-endPhase s@record { phase = combat CombatStart } = record s { phase = postCombatMain } -- If no attackers are declared, skip combat
-endPhase s@record { phase = combat (DeclaredAttackers a) } = record s { phase = combat (DeclaredBlockers a (noBlockers a)) }
-endPhase s@record { phase = combat (DeclaredBlockers a b) } = resolveCombat a b s refl
+endPhase s@record { phase = preCombatMain } = changePhase (combat CombatStart) s
+endPhase s@record { phase = combat CombatStart } = changePhase postCombatMain s -- If no attackers are declared, skip combat
+endPhase s@record { phase = combat (DeclaredAttackers a) } = changePhase (combat (DeclaredBlockers a (noBlockers a))) s
+endPhase s@record { phase = combat (DeclaredBlockers a b) } = changePhase postCombatMain (resolveCombat a b s refl)
 endPhase s@record { phase = postCombatMain } = endTurn s
 
 
@@ -446,33 +447,76 @@ ex1 = begin
     initialGameState ozzie ⟶⟨ doAction ozzie (aDraw refl) ⟩
     drawCard (initialGameState ozzie) refl ⟶⟨ doAction ozzie (aTapLand refl) ⟩
     withPlayer (drawCard (initialGameState ozzie) refl) ozzie tapLand ⟶⟨ doAction ozzie (aCastWalker1 refl main1 (s≤s (s≤s z≤n)) refl) ⟩
-    game preCombatMain ozzie (record
-        { healthTotal = 20
-        ; floatingMana = 0
-        ; thopters = noThopters
-        ; isCityTapped = true
+    game preCombatMain ozzie (record ozzieStart
+        { isCityTapped = true
         ; walker1State = onBattlefield walkerInitialState
-        ; card2State = inHand
-        }) (record
-        { healthTotal = 20
-        ; floatingMana = 0
-        ; thopters = noThopters
-        ; isCityTapped = false
-        ; walker1State = inHand
-        ; card2State = inHand
-        }) false ⟶⟨ doAction ozzie (aEndPhase refl) ⟩
-  {!   !} ⟶⟨ doAction {!   !} {!   !} ⟩
+        }) brigyeetzStart false ⟶⟨ doAction ozzie (aDoNothing) ⟩
+    _ ⟶⟨ doAction brigyeetz aDoNothing ⟩
+    game (combat CombatStart) ozzie (record ozzieStart
+        { isCityTapped = true
+        ; walker1State = onBattlefield walkerInitialState
+        }) brigyeetzStart false ⟶⟨ doAction ozzie aDoNothing ⟩
+  game (combat CombatStart) ozzie (record ozzieStart
+        { isCityTapped = true
+        ; walker1State = onBattlefield walkerInitialState
+        }) brigyeetzStart true ⟶⟨ doAction brigyeetz aDoNothing ⟩
+  game postCombatMain ozzie (record ozzieStart { isCityTapped = true ; walker1State = onBattlefield walkerInitialState
+        }) brigyeetzStart false ⟶⟨ doAction ozzie aDoNothing ⟩
+  game postCombatMain ozzie (record ozzieStart { isCityTapped = true ; walker1State = onBattlefield walkerInitialState
+        }) brigyeetzStart true ⟶⟨ doAction brigyeetz aDoNothing ⟩
+  game draw brigyeetz (record ozzieStart { isCityTapped = true ; walker1State = onBattlefield walkerInitialState
+        }) brigyeetzStart false ⟶⟨ doAction brigyeetz (aDraw refl) ⟩
+  game preCombatMain brigyeetz (record ozzieStart { isCityTapped = true ; walker1State = onBattlefield walkerInitialState
+        }) brigyeetzStart false ⟶⟨ doAction brigyeetz (aTapLand refl) ⟩
+  game preCombatMain brigyeetz (record ozzieStart { isCityTapped = true ; walker1State = onBattlefield walkerInitialState
+        }) (record brigyeetzStart {floatingMana = 2 ; isCityTapped = true}) false ⟶⟨ doAction brigyeetz (aCastWalker2 refl main1 (s≤s (s≤s z≤n)) refl) ⟩
+  game preCombatMain brigyeetz (record ozzieStart { isCityTapped = true ; walker1State = onBattlefield walkerInitialState
+        }) (record brigyeetzStart {isCityTapped = true ; card2State = onBattlefield walkerInitialState}) false ⟶⟨ doAction brigyeetz aDoNothing ⟩
+  game preCombatMain brigyeetz (record ozzieStart { isCityTapped = true ; walker1State = onBattlefield walkerInitialState
+        }) (record brigyeetzStart {isCityTapped = true ; card2State = onBattlefield walkerInitialState}) true ⟶⟨ doAction ozzie aDoNothing ⟩
+  game (combat CombatStart) brigyeetz (record ozzieStart { isCityTapped = true ; walker1State = onBattlefield walkerInitialState
+        }) (record brigyeetzStart {isCityTapped = true ; card2State = onBattlefield walkerInitialState}) false ⟶⟨ doAction brigyeetz aDoNothing ⟩
+  game (combat CombatStart) brigyeetz (record ozzieStart { isCityTapped = true ; walker1State = onBattlefield walkerInitialState
+        }) (record brigyeetzStart {isCityTapped = true ; card2State = onBattlefield walkerInitialState}) true ⟶⟨ doAction ozzie aDoNothing ⟩
+  game postCombatMain brigyeetz (record ozzieStart { isCityTapped = true ; walker1State = onBattlefield walkerInitialState
+        }) (record brigyeetzStart {isCityTapped = true ; card2State = onBattlefield walkerInitialState}) false ⟶⟨ doAction brigyeetz aDoNothing ⟩
+  game postCombatMain brigyeetz (record ozzieStart { isCityTapped = true ; walker1State = onBattlefield walkerInitialState
+        }) (record brigyeetzStart {isCityTapped = true ; card2State = onBattlefield walkerInitialState}) true ⟶⟨ doAction ozzie aDoNothing ⟩
+  game draw ozzie (record ozzieStart { walker1State = onBattlefield (record { isTapped = false ; summoningSickness = false ; nCounters = 1 }) })
+        (record brigyeetzStart { isCityTapped = true ; card2State = onBattlefield walkerInitialState }) false ⟶⟨ doAction ozzie (aDraw refl) ⟩
+  game preCombatMain ozzie (record ozzieStart { walker1State = onBattlefield (record { isTapped = false ; summoningSickness = false ; nCounters = 1 }) })
+        (record brigyeetzStart { isCityTapped = true ; card2State = onBattlefield walkerInitialState }) false ⟶⟨ doAction ozzie aDoNothing ⟩
+  game preCombatMain ozzie (record ozzieStart { walker1State = onBattlefield (record { isTapped = false ; summoningSickness = false ; nCounters = 1 }) })
+        (record brigyeetzStart { isCityTapped = true ; card2State = onBattlefield walkerInitialState }) true ⟶⟨ doAction brigyeetz aDoNothing ⟩
+  game (combat CombatStart) ozzie (record ozzieStart { walker1State = onBattlefield (record { isTapped = false ; summoningSickness = false ; nCounters = 1 }) })
+        (record brigyeetzStart { isCityTapped = true ; card2State = onBattlefield walkerInitialState }) false
+        ⟶⟨ doAction ozzie (aDeclareAttackers refl refl (myAttackers) (record { thoptersValid = z≤n ; walker1Valid = valid 1 ; walker2Valid = tt })) ⟩
+  game (combat (DeclaredAttackers myAttackers)) ozzie (record ozzieStart { walker1State = onBattlefield (record { isTapped = true ; summoningSickness = false ; nCounters = 1 }) })
+        (record brigyeetzStart { isCityTapped = true ; card2State = onBattlefield walkerInitialState }) false ⟶⟨ doAction ozzie aDoNothing ⟩
+  game (combat (DeclaredAttackers myAttackers)) ozzie (record ozzieStart { walker1State = onBattlefield (record { isTapped = true ; summoningSickness = false ; nCounters = 1 }) })
+        (record brigyeetzStart { isCityTapped = true ; card2State = onBattlefield walkerInitialState }) true ⟶⟨ doAction brigyeetz aDoNothing ⟩
+  game (combat (DeclaredBlockers myAttackers (noBlockers myAttackers))) ozzie (record ozzieStart { walker1State = onBattlefield (record { isTapped = true ; summoningSickness = false ; nCounters = 1 }) })
+        (record brigyeetzStart { isCityTapped = true ; card2State = onBattlefield walkerInitialState }) false ⟶⟨ doAction ozzie aDoNothing ⟩
+  game (combat (DeclaredBlockers myAttackers (noBlockers myAttackers))) ozzie (record ozzieStart { walker1State = onBattlefield (record { isTapped = true ; summoningSickness = false ; nCounters = 1 }) })
+        (record brigyeetzStart { isCityTapped = true ; card2State = onBattlefield walkerInitialState }) true ⟶⟨ doAction brigyeetz aDoNothing ⟩
+  game postCombatMain ozzie (record ozzieStart { walker1State = onBattlefield (record { isTapped = true ; summoningSickness = false ; nCounters = 1 }) })
+        (record brigyeetzStart { healthTotal = 19; isCityTapped = true ; card2State = onBattlefield walkerInitialState }) false ⟶⟨ doAction brigyeetz aDoNothing ⟩
+--   {!   !} ⟶⟨ {!   !} ⟩
 --   {!   !} ⟶⟨ {!   !} ⟩
     {!   !} ∎
     where
         open StarReasoning Step
+        myAttackers : AttackerInfo
+        myAttackers = record { thopters = 0 ; walker1Attack = true ; walker2Attack = false }
 
 -- -- TODO: Proper priority
 -- data PlayerStep (p : Player) : GameState → GameState → Set where
 --     singleStep :
 
+-- TODO: Wrapper to choose available action set based on last action (To ensure correct priority, including APNP and no normal actions in between certain actions)
+
 isAlive : Player → GameState → Set
-isAlive p s = healthTotal (GameState.stateOfPlayer s p) > 0
+isAlive p s = NonZero (healthTotal (GameState.stateOfPlayer s p))
 opponentHasLost : Player → GameState → Set
 opponentHasLost p s = healthTotal (GameState.stateOfPlayer s (opponentOf p)) ≡ 0
 
@@ -481,10 +525,24 @@ data winningGame (p : Player) (s : GameState) : Set where
     hasWon : opponentHasLost p s → winningGame p s
     willWin : isAlive p s → Σ[ bestAction ∈ Action s p ] losingGame (opponentOf p) (performAction s p bestAction) → winningGame p s
 losingGame p st = ∀ action → winningGame (opponentOf p) (performAction st p action)
+-- losingGame p st = playerHasLost p s ∨ ∀ action → winningGame (opponentOf p) (performAction st p action)
 
 -- TODO: isDraw = ¬ losingGame ∧ ¬ winningGame
+-- incorrect: -- isDraw p = isAlive p ∧ isAlive opponent ∧ ∀ action →  isDraw () (performAction action)
+-- ∃ act st draw and for all acts: draw or lose
+-- direct inverse: ¬ win = isAlive opponent ∧ (hasLost p ∨ ∀ act → ¬ losing opp (perform act) )
+-- direct inverse: ¬ lose = isAlive p ∧ ∃ act → ¬ winning opp (perform act) )
+-- direct inverse: ¬ win ∧ ¬ lose = isAlive p ∧ isAlive opponent ∧ (∃ act → ¬ winning opp (perform act)) ∧ (hasLost p ∨ ∀ act → ¬ losing opp (perform act))
+--                                = isAlive p ∧ isAlive opponent ∧ (∃ act → ¬ winning opp (perform act)) ∧ (∀ act → ¬ losing opp (perform act))
 
 -- Possible simpl: each player performs any number of actions in each phase, first active player, then opponent
+brigyeetzLoses : losingGame (opponentOf ozzie)
+                 (performAction (initialGameState ozzie) ozzie (aDraw refl))
+brigyeetzLoses (aTapLand pf) = {!   !}
+brigyeetzLoses aDoNothing = {!   !}
+
+ozzieWins : winningGame ozzie (initialGameState ozzie)
+ozzieWins = willWin _ ((aDraw refl) , {! brigyeetzLoses  !})
 
 
 -- TODO: Handle priority
@@ -493,3 +551,4 @@ losingGame p st = ∀ action → winningGame (opponentOf p) (performAction st p 
 -- Game = sequence of p1 action followed by p2 action, but multiple if priority is held.
 
 -- Goal: Prove isDraw or losingGame or winningGame for both initial games
+-- Method: Find an invariant that holds that can be used to prove that any game with this invariant will be a win/loss for some player
