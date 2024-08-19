@@ -6,6 +6,31 @@ open import Data.Bool
 open import Data.Product
 open import Data.List
 
+{-
+https://scryfall.com/card/cmm/951/hangarback-walker
+Hangarback Walker :manax::manax:
+Artifact Creature — Construct
+Hangarback Walker enters the battlefield with X +1/+1 counters on it.
+When Hangarback Walker dies, create a 1/1 colorless Thopter artifact creature token with flying for each +1/+1 counter on Hangarback Walker.
+:mana1:, :manat:: Put a +1/+1 counter on Hangarback Walker.
+0/0
+
+https://scryfall.com/card/c21/243/elixir-of-immortality
+Elixir of Immortality :mana1:
+Artifact
+:mana2:, :manat:: You gain 5 life. Shuffle Elixir of Immortality and your graveyard into their owner's library.
+"Bottled life. Not as tasty as I'm used to, rather stale, but it has the same effect." —Baron Sengir
+
+https://scryfall.com/card/tpr/237/city-of-traitors
+City of Traitors
+Land
+When you play another land, sacrifice City of Traitors.
+:manat:: Add :manac::manac:.
+"While we fought, the il surrendered." —Oracleen-Vec
+-}
+
+
+
 data Card : Set where
     walker : Card
     elixir : Card
@@ -128,9 +153,9 @@ brigyeetzStart = record
 -- drawCard2 empty = none , empty
 
 drawCard : ∀ {p} → PlayerState p → PlayerState p
-drawCard {p} s = case s  .PlayerState.deck of λ
+drawCard {p} s = case s  .deck of λ
   { [] → s
-  ; (x ∷ d) → record s { deck = d ; hand = x ∷ s .PlayerState.hand }
+  ; (x ∷ d) → record s { deck = d ; hand = x ∷ s .hand }
   }
 
 data ListHas (c : Card) : List Card → Set where
@@ -144,7 +169,7 @@ removeCard c (c ∷ l) here = l
 removeCard c (x ∷ l) (there pf) = x ∷ removeCard c l pf
 
 playCity : ∀ {p} → (s : PlayerState p) → (s .deck) has city → PlayerState p
-playCity {p} s pf = case s  .PlayerState.deck of λ { x → {!   !} }
+playCity {p} s pf = case s  .deck of λ { x → {!   !} }
 
 -- isWinning = currentlyWinning ∨ ∃ myMove , ∀ opponentMove , isWinning
 
