@@ -43,10 +43,21 @@ record WalkerState : Set where
         nCounters : ℕ
 
 record CityState : Set where
+    constructor cityState
     field
         isTapped : Bool
 
 record ElixirState : Set where
+    constructor elixirState
+
+CardState : Card → Set
+CardState c = {!   !}
+
+data CardPosition (c : Card) : Set where
+    inHand : CardPosition c
+    inGraveyard : CardPosition c
+    inDeck : CardPosition c -- TODO: Deck position
+    onBattlefield : CardState c → CardPosition c
 
 data Player : Set where
     ozzie : Player
@@ -108,6 +119,7 @@ data Phase : Set where
     preCombatMain : Phase
     combat : Phase
     postCombatMain : Phase
+    cleanup : Phase
 
 record GameState : Set where
     field
@@ -128,7 +140,7 @@ ozzieStart = record
     { healthTotal = 20
     ; thopters = noThopters
     ; hand = walker ∷ elixir ∷ []
-    ; board = city
+    ; board = city (cityState false)
     ; graveyard = []
     ; deck = []
     }
@@ -138,7 +150,7 @@ brigyeetzStart = record
     { healthTotal = 20
     ; thopters = noThopters
     ; hand = walker ∷ walker ∷ []
-    ; board = city
+    ; board = city {!   !}
     ; graveyard = []
     ; deck = []
     }
@@ -172,5 +184,6 @@ playCity : ∀ {p} → (s : PlayerState p) → (s .deck) has city → PlayerStat
 playCity {p} s pf = case s  .deck of λ { x → {!   !} }
 
 -- isWinning = currentlyWinning ∨ ∃ myMove , ∀ opponentMove , isWinning
+-- Above logic is LTL
 
-
+-- Deck order being decided on draw is not valid
