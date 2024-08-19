@@ -29,7 +29,7 @@ When you play another land, sacrifice City of Traitors.
 "While we fought, the il surrendered." —Oracleen-Vec
 -}
 
-
+-- data Tapped : Set
 
 data Card : Set where
     walker : Card
@@ -43,7 +43,7 @@ record WalkerState : Set where
         nCounters : ℕ
 
 record CityState : Set where
-    constructor cityState
+    -- constructor cityState
     field
         isTapped : Bool
 
@@ -51,7 +51,9 @@ record ElixirState : Set where
     constructor elixirState
 
 CardState : Card → Set
-CardState c = {!   !}
+CardState walker = WalkerState
+CardState elixir = ElixirState
+CardState city = CityState
 
 data CardPosition (c : Card) : Set where
     inHand : CardPosition c
@@ -63,54 +65,26 @@ data Player : Set where
     ozzie : Player
     brigyeetz : Player
 
--- Hand : Set
--- Hand = List Card
-
--- data PossibleHand : (p : Player) → Set where
---     walkerElixirCity : PossibleHand ozzie
---     walkerElixir : PossibleHand ozzie
---     elixir : PossibleHand ozzie
---     walkerWalkerCity : PossibleHand brigyeetz
---     walkerWalker : PossibleHand brigyeetz
---     walker : ∀ {p} → PossibleHand p
---     empty : ∀ {p} → PossibleHand p
-
-data PossibleBoard : (p : Player) → Set where
-    elixir       :       ElixirState →               CityState → PossibleBoard ozzie
-    walkerElixir :       ElixirState → WalkerState → CityState → PossibleBoard ozzie
-    walkerWalker :       WalkerState → WalkerState → CityState → PossibleBoard brigyeetz
-    walker       : ∀ {p} →               WalkerState → CityState → PossibleBoard p
-    city         : ∀ {p} →                             CityState → PossibleBoard p
-    -- empty        : ∀ {p} → PossibleBoard p
-
--- data PossibleGraveyard : (p : Player) → Set where
---     walkerElixir : PossibleGraveyard ozzie
---     elixir : PossibleGraveyard ozzie
---     walkerWalker : PossibleGraveyard brigyeetz
---     walker : ∀ {p} → PossibleGraveyard p
---     empty : ∀ {p} → PossibleGraveyard p
---
--- data PossibleDeck : (p : Player) → Set where
---     walkerElixir : PossibleDeck ozzie
---     elixirWalker : PossibleDeck ozzie
---     elixir : PossibleDeck ozzie
---     walker : PossibleDeck ozzie
---     empty : ∀ {p} → PossibleDeck p
-
 record ThopterState : Set where
     field
         tappedThopters : ℕ
         untappedUnsickThopters : ℕ
         summoningSickThopters : ℕ
 
+card2ForPlayer : Player → Card
+card2ForPlayer ozzie = elixir
+card2ForPlayer brigyeetz = walker
+
 record PlayerState (p : Player) : Set where
     field
         healthTotal : ℕ
         thopters : ThopterState
-        deck : List Card
-        hand : List Card
-        graveyard : List Card
-        board : PossibleBoard p
+        isCityTapped : Bool
+        walker1State : CardPosition walker
+        card2State : CardPosition (card2ForPlayer p)
+        -- deck : List Card
+        -- graveyard : List Card
+        -- board : PossibleBoard p
 
 open PlayerState
 
@@ -139,20 +113,18 @@ ozzieStart : PlayerState ozzie
 ozzieStart = record
     { healthTotal = 20
     ; thopters = noThopters
-    ; hand = walker ∷ elixir ∷ []
-    ; board = city (cityState false)
-    ; graveyard = []
-    ; deck = []
+    ; isCityTapped = false
+    ; walker1State = inHand
+    ; card2State = inHand
     }
 
 brigyeetzStart : PlayerState brigyeetz
 brigyeetzStart = record
     { healthTotal = 20
     ; thopters = noThopters
-    ; hand = walker ∷ walker ∷ []
-    ; board = city {!   !}
-    ; graveyard = []
-    ; deck = []
+    ; isCityTapped = false
+    ; walker1State = inHand
+    ; card2State = inHand
     }
 
 
@@ -164,11 +136,11 @@ brigyeetzStart = record
 -- drawCard2 walker = walker , empty
 -- drawCard2 empty = none , empty
 
-drawCard : ∀ {p} → PlayerState p → PlayerState p
-drawCard {p} s = case s  .deck of λ
-  { [] → s
-  ; (x ∷ d) → record s { deck = d ; hand = x ∷ s .hand }
-  }
+-- drawCard : ∀ {p} → PlayerState p → PlayerState p
+-- drawCard {p} s = case s  .deck of λ
+--   { [] → s
+--   ; (x ∷ d) → record s { deck = d ; hand = x ∷ s .hand }
+--   }
 
 data ListHas (c : Card) : List Card → Set where
     here : ∀ {xs} → ListHas c (c ∷ xs)
@@ -180,8 +152,8 @@ removeCard : (c : Card) → (l : List Card) → l has c → List Card
 removeCard c (c ∷ l) here = l
 removeCard c (x ∷ l) (there pf) = x ∷ removeCard c l pf
 
-playCity : ∀ {p} → (s : PlayerState p) → (s .deck) has city → PlayerState p
-playCity {p} s pf = case s  .deck of λ { x → {!   !} }
+-- playCity : ∀ {p} → (s : PlayerState p) → (s .deck) has city → PlayerState p
+-- playCity {p} s pf = case s  .deck of λ { x → {!   !} }
 
 -- isWinning = currentlyWinning ∨ ∃ myMove , ∀ opponentMove , isWinning
 -- Above logic is LTL
