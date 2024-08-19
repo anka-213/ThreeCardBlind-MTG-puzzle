@@ -70,7 +70,7 @@ data PossibleBoard : (p : Player) → Set where
     walkerWalker :       WalkerState → WalkerState → CityState → PossibleBoard brigyeetz
     walker       : ∀ {p} →               WalkerState → CityState → PossibleBoard p
     city         : ∀ {p} →                             CityState → PossibleBoard p
-    empty        : ∀ {p} → PossibleBoard p
+    -- empty        : ∀ {p} → PossibleBoard p
 
 -- data PossibleGraveyard : (p : Player) → Set where
 --     walkerElixir : PossibleGraveyard ozzie
@@ -127,8 +127,8 @@ ozzieStart : PlayerState ozzie
 ozzieStart = record
     { healthTotal = 20
     ; thopters = noThopters
-    ; hand = city ∷ walker ∷ elixir ∷ []
-    ; board = empty
+    ; hand = walker ∷ elixir ∷ []
+    ; board = city
     ; graveyard = []
     ; deck = []
     }
@@ -137,8 +137,8 @@ brigyeetzStart : PlayerState brigyeetz
 brigyeetzStart = record
     { healthTotal = 20
     ; thopters = noThopters
-    ; hand = city ∷ walker ∷ walker ∷ []
-    ; board = empty
+    ; hand = walker ∷ walker ∷ []
+    ; board = city
     ; graveyard = []
     ; deck = []
     }
