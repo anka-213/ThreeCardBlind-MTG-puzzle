@@ -78,6 +78,7 @@ card2ForPlayer brigyeetz = walker
 record PlayerState (p : Player) : Set where
     field
         healthTotal : ℕ
+        floatingMana : ℕ
         thopters : ThopterState
         isCityTapped : Bool
         walker1State : CardPosition walker
@@ -95,12 +96,28 @@ data Phase : Set where
     postCombatMain : Phase
     cleanup : Phase
 
+
 record GameState : Set where
+    constructor game
     field
         ozzieState : PlayerState ozzie
         brigyeetzState : PlayerState brigyeetz
         currentPlayer : Player
         phase : Phase
+    opponent : Player
+    opponent with currentPlayer
+    ...| ozzie = brigyeetz
+    ...| brigyeetz = ozzie
+    stateOfPlayer : (p : Player) → PlayerState p
+    stateOfPlayer ozzie = ozzieState
+    stateOfPlayer brigyeetz = brigyeetzState
+
+    currentPlayerState : PlayerState currentPlayer
+    currentPlayerState = stateOfPlayer currentPlayer
+    opponentState : PlayerState opponent
+    opponentState = stateOfPlayer opponent
+
+open GameState
 
 noThopters : ThopterState
 noThopters = record
@@ -112,6 +129,7 @@ noThopters = record
 ozzieStart : PlayerState ozzie
 ozzieStart = record
     { healthTotal = 20
+    ; floatingMana = 0
     ; thopters = noThopters
     ; isCityTapped = false
     ; walker1State = inHand
@@ -121,6 +139,7 @@ ozzieStart = record
 brigyeetzStart : PlayerState brigyeetz
 brigyeetzStart = record
     { healthTotal = 20
+    ; floatingMana = 0
     ; thopters = noThopters
     ; isCityTapped = false
     ; walker1State = inHand
@@ -159,3 +178,18 @@ removeCard c (x ∷ l) (there pf) = x ∷ removeCard c l pf
 -- Above logic is LTL
 
 -- Deck order being decided on draw is not valid
+
+drawCard : ∀ s (pf : phase s ≡ draw) → GameState
+drawCard s pf = record s { phase = preCombatMain } -- TODO: Actually draw cards
+
+tapLand : ∀ s (pf : phase s ≡ draw) → GameState
+tapLand s pf = record s { phase = preCombatMain }
+
+-- end turn = remove mana, untap, draw
+-- end phase = remove mana
+
+-- Actions
+data _⇒_ : GameState → GameState → Set where
+    aDraw : ∀ s → (pf : phase s ≡ Phase.draw) → s ⇒ {! drawCard s pf !}
+    aTapLand : ∀ s → (pf : isCityTapped (currentPlayerState s) ≡ false) → s ⇒ {! drawCard s pf !}
+    -- playCard
