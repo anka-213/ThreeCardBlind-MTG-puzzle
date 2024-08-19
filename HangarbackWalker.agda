@@ -262,22 +262,32 @@ module _ (s : GameState) where
 
     endPhase : GameState
     endPhase = {!   !}
-    -- TODO: Separate actions from results, so they can be searched
-    data Action : GameState → Set where
-        aDraw : (pf : GameState.phase s ≡ Phase.draw) → Action (drawCard s pf)
-        aTapLand : ∀ p → (pf : isCityTapped (stateOfPlayer p) ≡ false) → Action (withPlayer p tapLand)
-        aCastWalker1 : ∀ p → p ≡ currentPlayer → inMainPhase → (hasMana : floatingMana (stateOfPlayer p) ≥ 2) → (isInHand : walker1State (stateOfPlayer p) ≡ inHand) → Action (withPlayer p castWalker1)
-        aCastWalker2 : currentPlayer ≡ brigyeetz → inMainPhase → (hasMana : floatingMana brigyeetzState ≥ 2) → (isInHand : card2State brigyeetzState ≡ inHand) → Action (withPlayer brigyeetz castWalker2)
-        aCastElixir : currentPlayer ≡ ozzie → inMainPhase → (hasMana : floatingMana ozzieState ≥ 1) → (isInHand : card2State ozzieState ≡ inHand) → Action (withPlayer ozzie castElixir)
-        aActivateWalker1 : ∀ p (hasMana : floatingMana (stateOfPlayer p) ≥ 1) → (canActivate : canActivateWalker (walker1State (stateOfPlayer p))) → Action (setPlayerState p (activateWalker1 (stateOfPlayer p) canActivate))
-        aActivateWalker2 : ∀ (hasMana : floatingMana brigyeetzState ≥ 1) → (canActivate : canActivateWalker (card2State brigyeetzState)) → Action (setPlayerState brigyeetz (activateWalker2 brigyeetzState canActivate))
-        aActivateElixir : (hasMana : floatingMana ozzieState ≥ 2) → (canActivate : card2State ozzieState ≡ onBattlefield elixirState) → Action (withPlayer ozzie activateElixir)
-        aEndPhase : ∀ p → p ≡ currentPlayer → Action endPhase
-        aDoNothing : ∀ p → p ≡ currentPlayer → Action endPhase
+    data Action : Player → Set where
+        aDraw : ∀ {p} → (pf : GameState.phase s ≡ Phase.draw) → Action p
+        aTapLand : ∀ {p} → (pf : isCityTapped (stateOfPlayer p) ≡ false) → Action p
+        aCastWalker1 : ∀ {p} → p ≡ currentPlayer → inMainPhase → (hasMana : floatingMana (stateOfPlayer p) ≥ 2) → (isInHand : walker1State (stateOfPlayer p) ≡ inHand) → Action p
+        aCastWalker2 : currentPlayer ≡ brigyeetz → inMainPhase → (hasMana : floatingMana brigyeetzState ≥ 2) → (isInHand : card2State brigyeetzState ≡ inHand) → Action brigyeetz
+        aCastElixir : currentPlayer ≡ ozzie → inMainPhase → (hasMana : floatingMana ozzieState ≥ 1) → (isInHand : card2State ozzieState ≡ inHand) → Action ozzie
+        aActivateWalker1 : ∀ {p} (hasMana : floatingMana (stateOfPlayer p) ≥ 1) → (canActivate : canActivateWalker (walker1State (stateOfPlayer p))) → Action p
+        aActivateWalker2 : ∀ (hasMana : floatingMana brigyeetzState ≥ 1) → (canActivate : canActivateWalker (card2State brigyeetzState)) → Action brigyeetz
+        aActivateElixir : (hasMana : floatingMana ozzieState ≥ 2) → (canActivate : card2State ozzieState ≡ onBattlefield elixirState) → Action ozzie
+        aEndPhase : ∀ {p} → p ≡ currentPlayer → Action p
+        aDoNothing : ∀ {p} → Action p
         -- aCombat
         -- playCard
-    _⇒_ : GameState → Set
-    _⇒_ = Action
+    performAction : ∀ p → Action p → GameState
+    performAction p (aDraw pf) = drawCard s pf
+    performAction p (aTapLand pf) = (withPlayer p tapLand)
+    performAction p (aCastWalker1 curPl inMain hasMana isInHand) = withPlayer p castWalker1
+    performAction p (aCastWalker2 currBrigyeetz inMain hasMana isInHand) = withPlayer brigyeetz castWalker2
+    performAction p (aCastElixir currOzzie inMain hasMana isInHand) = withPlayer ozzie castElixir
+    performAction p (aActivateWalker1 hasMana canActivate) = setPlayerState p (activateWalker1 (stateOfPlayer p) canActivate)
+    performAction p (aActivateWalker2 hasMana canActivate) = setPlayerState brigyeetz (activateWalker2 brigyeetzState canActivate)
+    performAction p (aActivateElixir hasMana canActivate) = withPlayer ozzie activateElixir
+    performAction p (aEndPhase isActive) = endPhase
+    performAction p (aDoNothing) = {!   !}
+    -- _⇒_ : GameState → Set
+    -- _⇒_ = Action
 
 
 -- TODO: Handle priority
