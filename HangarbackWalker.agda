@@ -113,18 +113,18 @@ record GameState : Set where
     constructor game
     field
         phase : Phase
-        currentPlayer : Player
+        activePlayer : Player
         ozzieState : PlayerState ozzie
         brigyeetzState : PlayerState brigyeetz
     opponent : Player
-    opponent = opponentOf currentPlayer
+    opponent = opponentOf activePlayer
 
     stateOfPlayer : (p : Player) → PlayerState p
     stateOfPlayer ozzie = ozzieState
     stateOfPlayer brigyeetz = brigyeetzState
 
-    currentPlayerState : PlayerState currentPlayer
-    currentPlayerState = stateOfPlayer currentPlayer
+    activePlayerState : PlayerState activePlayer
+    activePlayerState = stateOfPlayer activePlayer
     opponentState : PlayerState opponent
     opponentState = stateOfPlayer opponent
 
@@ -197,11 +197,11 @@ drawCard s pf = record s { phase = preCombatMain } -- TODO: Actually draw cards
 -- end turn = remove mana, flip players, remove summoning sickness, untap, draw
 -- end phase = remove mana, remove damage
 
--- withCurrent : (s : GameState) → (PlayerState (currentPlayer s) → PlayerState (currentPlayer s)) → GameState
--- withCurrent s f = record s { currentPlayerState = f (currentPlayerState s)}
+-- withCurrent : (s : GameState) → (PlayerState (activePlayer s) → PlayerState (activePlayer s)) → GameState
+-- withCurrent s f = record s { activePlayerState = f (activePlayerState s)}
 
 
--- (pf : isCityTapped (currentPlayerState s) ≡ false)
+-- (pf : isCityTapped (activePlayerState s) ≡ false)
 tapLand : ∀ {p} → PlayerState p → PlayerState p
 tapLand s = record s { isCityTapped = true ; floatingMana = 2 }
 
@@ -255,7 +255,7 @@ module _ (s : GameState) where
     withPlayer : ∀ (p : Player) → (PlayerState p → PlayerState p) → GameState
     withPlayer ozzie f = record s { ozzieState = f ozzieState}
     withPlayer brigyeetz f = record s { brigyeetzState = f brigyeetzState}
-        -- record s { currentPlayerState = f (currentPlayerState s)}
+        -- record s { activePlayerState = f (activePlayerState s)}
 
     inMainPhase : Set
     inMainPhase = isMain phase
@@ -265,13 +265,13 @@ module _ (s : GameState) where
     data Action : Player → Set where
         aDraw : ∀ {p} → (pf : GameState.phase s ≡ Phase.draw) → Action p
         aTapLand : ∀ {p} → (pf : isCityTapped (stateOfPlayer p) ≡ false) → Action p
-        aCastWalker1 : ∀ {p} → p ≡ currentPlayer → inMainPhase → (hasMana : floatingMana (stateOfPlayer p) ≥ 2) → (isInHand : walker1State (stateOfPlayer p) ≡ inHand) → Action p
-        aCastWalker2 : currentPlayer ≡ brigyeetz → inMainPhase → (hasMana : floatingMana brigyeetzState ≥ 2) → (isInHand : card2State brigyeetzState ≡ inHand) → Action brigyeetz
-        aCastElixir : currentPlayer ≡ ozzie → inMainPhase → (hasMana : floatingMana ozzieState ≥ 1) → (isInHand : card2State ozzieState ≡ inHand) → Action ozzie
+        aCastWalker1 : ∀ {p} → p ≡ activePlayer → inMainPhase → (hasMana : floatingMana (stateOfPlayer p) ≥ 2) → (isInHand : walker1State (stateOfPlayer p) ≡ inHand) → Action p
+        aCastWalker2 : activePlayer ≡ brigyeetz → inMainPhase → (hasMana : floatingMana brigyeetzState ≥ 2) → (isInHand : card2State brigyeetzState ≡ inHand) → Action brigyeetz
+        aCastElixir : activePlayer ≡ ozzie → inMainPhase → (hasMana : floatingMana ozzieState ≥ 1) → (isInHand : card2State ozzieState ≡ inHand) → Action ozzie
         aActivateWalker1 : ∀ {p} (hasMana : floatingMana (stateOfPlayer p) ≥ 1) → (canActivate : canActivateWalker (walker1State (stateOfPlayer p))) → Action p
         aActivateWalker2 : ∀ (hasMana : floatingMana brigyeetzState ≥ 1) → (canActivate : canActivateWalker (card2State brigyeetzState)) → Action brigyeetz
         aActivateElixir : (hasMana : floatingMana ozzieState ≥ 2) → (canActivate : card2State ozzieState ≡ onBattlefield elixirState) → Action ozzie
-        aEndPhase : ∀ {p} → p ≡ currentPlayer → Action p
+        aEndPhase : ∀ {p} → p ≡ activePlayer → Action p
         aDoNothing : ∀ {p} → Action p
         -- aCombat
         -- playCard
