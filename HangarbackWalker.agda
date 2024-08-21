@@ -564,11 +564,16 @@ losingGame p st = ∀ action → winningGame (opponentOf p) (performAction st p 
 
 brigyeetzLoses : losingGame (opponentOf ozzie)
                  (performAction (initialGameState ozzie) ozzie (aDraw refl))
-brigyeetzLoses aDoNothing = {!   !}
+brigyeetzLoses aDoNothing = willWin tt (aCastWalker1 refl main1 (untappedLand refl) refl , λ where
+  aDoNothing → willWin tt (aDoNothing , λ where
+    aDoNothing → willWin tt (aDoNothing , λ where
+      aDoNothing → willWin tt (aDoNothing , λ where
+        (aDraw pf) → {!   !}
+        aDoNothing → {!   !}))))
 -- brigyeetzLoses (aTapLand refl) = willWin tt (aTapLand refl , λ { aDoNothing → willWin tt ((aCastWalker1 refl main1 {!   !} refl) , {!   !})})
 
 ozzieWins : winningGame ozzie (initialGameState ozzie)
-ozzieWins = willWin _ ((aDraw refl) , {! brigyeetzLoses  !})
+ozzieWins = willWin _ (aDraw refl , brigyeetzLoses)
 
 
 -- TODO: Handle priority
