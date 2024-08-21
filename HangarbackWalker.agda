@@ -133,7 +133,6 @@ data CombatStep : Set where
     DeclaredBlockers : (a : AttackerInfo) → BlockerInfo a → CombatStep
 
 data Phase : Set where
-    draw : Phase
     preCombatMain : Phase
     combat : CombatStep → Phase
     postCombatMain : Phase
@@ -207,7 +206,7 @@ brigyeetzStart = record
     }
 
 initialGameState : Player → GameState
-initialGameState p = game draw p ozzieStart brigyeetzStart false
+initialGameState p = game preCombatMain p ozzieStart brigyeetzStart false
 
 -- drawCard2 : ∀ {p} → PossibleDeck p → Card × PossibleDeck p
 -- drawCard2 walkerElixir = walker , elixir
@@ -240,8 +239,8 @@ removeCard c (x ∷ l) (there pf) = x ∷ removeCard c l pf
 
 -- Deck order being decided on draw is not valid
 
-drawCard : ∀ s (pf : GameState.phase s ≡ draw) → GameState
-drawCard s pf = record s { phase = preCombatMain } -- TODO: Actually draw cards
+drawCard : ∀ s → GameState
+drawCard s = record s { phase = preCombatMain } -- TODO: Actually draw cards
 
 -- end turn = remove mana, flip players, remove summoning sickness, untap, draw
 -- end phase = remove mana, remove damage
@@ -380,7 +379,7 @@ untapActivePlayer : GameState → GameState
 untapActivePlayer s = withPlayer s (GameState.activePlayer s) untapPlayer
 
 endTurn : GameState → GameState
-endTurn s = untapActivePlayer (record (changePhase draw s) { activePlayer = opponentOf (GameState.activePlayer s)})
+endTurn s = drawCard (untapActivePlayer (record (changePhase preCombatMain s) { activePlayer = opponentOf (GameState.activePlayer s)}))
 
 -- TODO: Disallow invalid states
 walkerSize : ∀ {c} → CardPosition c → ℕ
@@ -407,7 +406,6 @@ resolveCombat a b s r = withPlayer s opponent (takeDamage a (activePlayerState))
 
 
 endPhase : GameState → GameState
-endPhase s@record { phase = draw } = drawCard s refl
 endPhase s@record { phase = preCombatMain } = changePhase (combat CombatStart) s
 endPhase s@record { phase = combat CombatStart } = changePhase postCombatMain s -- If no attackers are declared, skip combat
 endPhase s@record { phase = combat (DeclaredAttackers a) } = changePhase (combat (DeclaredBlockers a (noBlockers a))) s
@@ -430,8 +428,6 @@ module _ (s : GameState) where
     -- Maybe add extra action to tapLand or integrate it into the actions that take two mana.
     -- Maybe disallow tapping land without using mana (e.g. by using a "has mana" proof, that either picks from pool or land)
     data Action : Player → Set where
-        aDraw : ∀ {p} → (pf : GameState.phase s ≡ Phase.draw) → Action p
-        -- aTapLand : ∀ {p} → (pf : isCityTapped (stateOfPlayer p) ≡ false) → Action p
         aCastWalker1 : ∀ {p} → p ≡ activePlayer → inMainPhase → (hasMana : HasMana (stateOfPlayer p) 2) → (isInHand : walker1State (stateOfPlayer p) ≡ inHand) → Action p
         aCastWalker2 : activePlayer ≡ brigyeetz → inMainPhase → (hasMana : HasMana brigyeetzState 2) → (isInHand : card2State brigyeetzState ≡ inHand) → Action brigyeetz
         aCastElixir : activePlayer ≡ ozzie → inMainPhase → (hasMana : HasMana ozzieState 1) → (isInHand : card2State ozzieState ≡ inHand) → Action ozzie
@@ -441,11 +437,8 @@ module _ (s : GameState) where
         aDeclareAttackers : ∀ {p} → phase ≡ combat CombatStart → p ≡ activePlayer → (atcks : AttackerInfo) → (AttackersValid s atcks) → Action p
         aDeclareBlockers : ∀ {p} (atcks : AttackerInfo) → phase ≡ combat (DeclaredAttackers atcks) → p ≡ opponent → (blcks : BlockerInfo atcks) → (AttackersValid s atcks) → Action p
         aDoNothing : ∀ {p} → Action p
-        -- aCombat
-        -- playCard
+
     performAction : ∀ p → Action p → GameState
-    performAction p (aDraw pf) = drawCard s pf
-    -- performAction p (aTapLand pf) = withPlayer s p tapLand
     performAction p (aCastWalker1 curPl inMain hasMana isInHand) = withPlayerCost s p 2 hasMana castWalker1
     performAction p (aCastWalker2 currBrigyeetz inMain hasMana isInHand) = withPlayerCost s brigyeetz 2 hasMana castWalker2
     performAction p (aCastElixir currOzzie inMain hasMana isInHand) = withPlayerCost s ozzie 1 hasMana castElixir
@@ -469,8 +462,7 @@ gameExample = Star Step
 
 ex1 : gameExample (initialGameState ozzie) {!   !}
 ex1 = begin
-    initialGameState ozzie ⟶⟨ doAction ozzie (aDraw refl) ⟩
-    drawCard (initialGameState ozzie) refl ⟶⟨ doAction ozzie (aCastWalker1 refl main1 (untappedLand refl) refl) ⟩
+    initialGameState ozzie ⟶⟨ doAction ozzie (aCastWalker1 refl main1 (untappedLand refl) refl) ⟩
     game preCombatMain ozzie (record ozzieStart
         { isCityTapped = true
         ; walker1State = onBattlefield walkerInitialState
@@ -488,8 +480,6 @@ ex1 = begin
         }) brigyeetzStart false ⟶⟨ doAction ozzie aDoNothing ⟩
   game postCombatMain ozzie (record ozzieStart { isCityTapped = true ; walker1State = onBattlefield walkerInitialState
         }) brigyeetzStart true ⟶⟨ doAction brigyeetz aDoNothing ⟩
-  game draw brigyeetz (record ozzieStart { isCityTapped = true ; walker1State = onBattlefield walkerInitialState
-        }) brigyeetzStart false ⟶⟨ doAction brigyeetz (aDraw refl) ⟩
   game preCombatMain brigyeetz (record ozzieStart { isCityTapped = true ; walker1State = onBattlefield walkerInitialState
         }) brigyeetzStart false ⟶⟨ doAction brigyeetz (aCastWalker2 refl main1 (untappedLand refl) refl) ⟩
   game preCombatMain brigyeetz (record ozzieStart { isCityTapped = true ; walker1State = onBattlefield walkerInitialState
@@ -504,8 +494,6 @@ ex1 = begin
         }) (record brigyeetzStart {isCityTapped = true ; card2State = onBattlefield walkerInitialState}) false ⟶⟨ doAction brigyeetz aDoNothing ⟩
   game postCombatMain brigyeetz (record ozzieStart { isCityTapped = true ; walker1State = onBattlefield walkerInitialState
         }) (record brigyeetzStart {isCityTapped = true ; card2State = onBattlefield walkerInitialState}) true ⟶⟨ doAction ozzie aDoNothing ⟩
-  game draw ozzie (record ozzieStart { walker1State = onBattlefield (record { isTapped = false ; summoningSickness = false ; nCounters = 1 }) })
-        (record brigyeetzStart { isCityTapped = true ; card2State = onBattlefield walkerInitialState }) false ⟶⟨ doAction ozzie (aDraw refl) ⟩
   game preCombatMain ozzie (record ozzieStart { walker1State = onBattlefield (record { isTapped = false ; summoningSickness = false ; nCounters = 1 }) })
         (record brigyeetzStart { isCityTapped = true ; card2State = onBattlefield walkerInitialState }) false ⟶⟨ doAction ozzie aDoNothing ⟩
   game preCombatMain ozzie (record ozzieStart { walker1State = onBattlefield (record { isTapped = false ; summoningSickness = false ; nCounters = 1 }) })
@@ -562,18 +550,15 @@ losingGame p st = ∀ action → winningGame (opponentOf p) (performAction st p 
 -- Alternative method: add priority variable and just skip when you do not have priority
 -- Or do multiple at once
 
-brigyeetzLoses : losingGame (opponentOf ozzie)
-                 (performAction (initialGameState ozzie) ozzie (aDraw refl))
-brigyeetzLoses aDoNothing = willWin tt (aCastWalker1 refl main1 (untappedLand refl) refl , λ where
+
+ozzieWins : winningGame ozzie (initialGameState ozzie)
+ozzieWins = willWin tt (aCastWalker1 refl main1 (untappedLand refl) refl , λ where
   aDoNothing → willWin tt (aDoNothing , λ where
     aDoNothing → willWin tt (aDoNothing , λ where
       aDoNothing → willWin tt (aDoNothing , λ where
-        (aDraw pf) → {!   !}
-        aDoNothing → {!   !}))))
--- brigyeetzLoses (aTapLand refl) = willWin tt (aTapLand refl , λ { aDoNothing → willWin tt ((aCastWalker1 refl main1 {!   !} refl) , {!   !})})
-
-ozzieWins : winningGame ozzie (initialGameState ozzie)
-ozzieWins = willWin _ (aDraw refl , brigyeetzLoses)
+        (aCastWalker1 x x₁ hasMana isInHand) → ?
+        (aCastWalker2 x x₁ hasMana isInHand) → ?
+        aDoNothing → ?))))
 
 
 -- TODO: Handle priority
