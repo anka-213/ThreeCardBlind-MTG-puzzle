@@ -2,6 +2,7 @@
 open import Relation.Binary.PropositionalEquality
 open import Function
 open import Data.Nat
+open import Data.Fin using (Fin ; #_)
 open import Data.Unit.Base hiding (_≤_)
 open import Data.Bool hiding (_≤_)
 open import Data.Product
@@ -242,6 +243,18 @@ drawCard s pf = record s { phase = preCombatMain } -- TODO: Actually draw cards
 -- withCurrent : (s : GameState) → (PlayerState (activePlayer s) → PlayerState (activePlayer s)) → GameState
 -- withCurrent s f = record s { activePlayerState = f (activePlayerState s)}
 
+-- We do not allow more than one mana source, since only one exists in this matchup
+module _ (p : Player) (s : PlayerState p) where
+    data HasMana : ℕ → Set where
+        untappedLand : (pf : isCityTapped s ≡ false) → HasMana 2
+        usingFloatingMana : (hasMana : floatingMana s ≡ 1) → HasMana 1
+        ignoreMana : HasMana 2 → HasMana 1
+
+    consumeMana : ∀ n → HasMana n → PlayerState p
+    consumeMana .2 (untappedLand pf) = record s { isCityTapped = true }
+    consumeMana .1 (usingFloatingMana hasMana) = record s { floatingMana = 0 }
+    consumeMana .1 (ignoreMana (untappedLand pf)) = record s { isCityTapped = true ; floatingMana = 1 }
+
 
 -- (pf : isCityTapped (activePlayerState s) ≡ false)
 tapLand : ∀ {p} → PlayerState p → PlayerState p
@@ -402,6 +415,9 @@ module _ (s : GameState) where
     inMainPhase : Set
     inMainPhase = isMain phase
 
+    -- Maybe split into tree of actions with categories to make it easier to restrict when actions can be taken
+    -- Maybe add extra action to tapLand or integrate it into the actions that take two mana.
+    -- Maybe disallow tapping land without using mana (e.g. by using a "has mana" proof, that either picks from pool or land)
     data Action : Player → Set where
         aDraw : ∀ {p} → (pf : GameState.phase s ≡ Phase.draw) → Action p
         aTapLand : ∀ {p} → (pf : isCityTapped (stateOfPlayer p) ≡ false) → Action p
@@ -411,7 +427,6 @@ module _ (s : GameState) where
         aActivateWalker1 : ∀ {p} (hasMana : floatingMana (stateOfPlayer p) ≥ 1) → (canActivate : canActivateWalker (walker1State (stateOfPlayer p))) → Action p
         aActivateWalker2 : ∀ (hasMana : floatingMana brigyeetzState ≥ 1) → (canActivate : canActivateWalker (card2State brigyeetzState)) → Action brigyeetz
         aActivateElixir : (hasMana : floatingMana ozzieState ≥ 2) → (canActivate : card2State ozzieState ≡ onBattlefield elixirState) → Action ozzie
-        aEndPhase : ∀ {p} → p ≡ activePlayer → Action p
         aDeclareAttackers : ∀ {p} → phase ≡ combat CombatStart → p ≡ activePlayer → (atcks : AttackerInfo) → (AttackersValid s atcks) → Action p
         aDeclareBlockers : ∀ {p} (atcks : AttackerInfo) → phase ≡ combat (DeclaredAttackers atcks) → p ≡ opponent → (blcks : BlockerInfo atcks) → (AttackersValid s atcks) → Action p
         aDoNothing : ∀ {p} → Action p
@@ -428,7 +443,6 @@ module _ (s : GameState) where
     performAction p (aActivateElixir hasMana canActivate) = withPlayer s ozzie activateElixir
     performAction p (aDeclareAttackers phs curPl atcks atcksValid) = withPlayer (changePhase (combat (DeclaredAttackers atcks)) s) activePlayer (tapAttackers atcks) -- record s { phase =  ; lastPlayerPassed = false}
     performAction p (aDeclareBlockers atcks phs curPl blcks atcksValid) = changePhase (combat (DeclaredBlockers atcks blcks)) s
-    performAction p (aEndPhase isActive) = endPhase s
     performAction p (aDoNothing) = doNothing p s
     -- _⇒_ : GameState → Set
     -- _⇒_ = Action
@@ -536,9 +550,13 @@ losingGame p st = ∀ action → winningGame (opponentOf p) (performAction st p 
 --                                = isAlive p ∧ isAlive opponent ∧ (∃ act → ¬ winning opp (perform act)) ∧ (∀ act → ¬ losing opp (perform act))
 
 -- Possible simpl: each player performs any number of actions in each phase, first active player, then opponent
+
+-- Alternative method: add priority variable and just skip when you do not have priority
+-- Or do multiple at once
+
 brigyeetzLoses : losingGame (opponentOf ozzie)
                  (performAction (initialGameState ozzie) ozzie (aDraw refl))
-brigyeetzLoses (aTapLand pf) = {!   !}
+brigyeetzLoses (aTapLand refl) = willWin tt (aTapLand refl , λ { aDoNothing → willWin tt ((aCastWalker1 refl main1 (s≤s (s≤s z≤n)) refl) , {!   !})})
 brigyeetzLoses aDoNothing = {!   !}
 
 ozzieWins : winningGame ozzie (initialGameState ozzie)
