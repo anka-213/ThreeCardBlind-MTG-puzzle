@@ -4,6 +4,7 @@ open import Function
 open import Data.Nat
 open import Data.Fin using (Fin ; #_)
 open import Data.Unit.Base hiding (_≤_)
+open import Data.Empty
 open import Data.Bool hiding (_≤_)
 open import Data.Product
 open import Data.List
@@ -114,17 +115,49 @@ record AttackerInfo : Set where
 
 -- TODO: fix blockers
 -- TODO: Declare blocker order
+
+isUntappedWalker : ∀ {c} → CardPosition c → Set
+isUntappedWalker {walker} (onBattlefield record { isTapped = false }) = ⊤
+isUntappedWalker _ = ⊥
+
+-- TODO: Limit based on attackers
+data BlockTarget : Set where
+    blockThopter : BlockTarget
+    blockWalker1 : BlockTarget
+    blockWalker2 : BlockTarget
+    noBlock : BlockTarget
+
+isBlocking : BlockTarget → Bool
+isBlocking noBlock = false
+isBlocking _ = true
+
 record BlockerInfo (a : AttackerInfo) : Set where
     field
-        thopters : ℕ
-        walker1Attack : Bool
-        walker2Attack : Bool
+        thopter-thopter-blocks : ℕ
+        thopter-block-walker1 : Bool
+        thopter-block-walker2 : Bool
+        walker1Block : BlockTarget
+        -- TODO: Only if we have one
+        walker2Block : BlockTarget
+
+{-
+Possible blocks:
+chump-block with a thopter
+chump-block with a walker
+(chump-block with multiple walkers)
+(full-block with thopters)
+block thopters with thopters
+block thopters with walkers
+
+-}
 
 noBlockers : ∀ a → BlockerInfo a
 noBlockers a = record
-    { thopters = 0
-    ; walker1Attack = false
-    ; walker2Attack = false
+    { thopter-thopter-blocks = 0
+    ; thopter-block-walker1 = false
+    ; thopter-block-walker2 = false
+    ; walker1Block = noBlock
+    ; walker2Block = noBlock
     }
 
 data CombatStep : Set where
@@ -158,6 +191,7 @@ record GameState : Set where
     opponentState : PlayerState opponent
     opponentState = stateOfPlayer opponent
 
+-- TODO: Maybe add priority field to game state to tell who can do an action
 
 module _ (s : GameState) where
     open GameState s
@@ -345,7 +379,8 @@ record AttackersValid (s : GameState) (a : AttackerInfo) : Set where
         walker2Valid : if AttackerInfo.walker2Attack a then Σ[ pf ∈ GameState.activePlayer s ≡ brigyeetz ] canActivateWalker2 pf (card2State (GameState.activePlayerState s)) else ⊤
 
 record BlockerssValid (s : GameState) (a : AttackerInfo) (b : BlockerInfo a) : Set where
-    -- field
+    field
+        walker1Valid : if isBlocking (BlockerInfo.walker1Block b) then canActivateWalker (walker1State (GameState.opponentState s)) else ⊤
     -- TODO implement this
 
 mapCard : ∀ {c} → (CardState c → CardState c) → CardPosition c → CardPosition c
@@ -474,7 +509,7 @@ module _ (s : GameState) where
 gameExample : GameState → GameState → Set
 gameExample = Star Step
 
-
+-- TODO: Move to new module
 ex1 : gameExample (initialGameState ozzie) {!   !}
 ex1 = begin
     initialGameState ozzie ⟶⟨ doAction ozzie (aCastWalker1 refl main1 (untappedLand refl) refl) ⟩
