@@ -168,8 +168,14 @@ module _ (s : GameState) where
     setPlayerState brigyeetz s1 = record s { brigyeetzState = s1 ; lastPlayerPassed = false}
 
     withPlayer : ∀ (p : Player) → (PlayerState p → PlayerState p) → GameState
-    withPlayer ozzie f = record s { ozzieState = f ozzieState ; lastPlayerPassed = false}
-    withPlayer brigyeetz f = record s { brigyeetzState = f brigyeetzState ; lastPlayerPassed = false}
+    withPlayer p f = setPlayerState p (f (stateOfPlayer p))
+
+    -- sp = stateOfPlayer p
+    withPlayerP : ∀ (p : Player) (P : PlayerState p → Set) → (P (stateOfPlayer p)) → ((s : PlayerState p) → P s → PlayerState p) → GameState
+    withPlayerP p P arg f = setPlayerState p (f sp arg)
+      where sp = stateOfPlayer p
+    -- withPlayer ozzie f = record s { ozzieState = f ozzieState ; lastPlayerPassed = false}
+    -- withPlayer brigyeetz f = record s { brigyeetzState = f brigyeetzState ; lastPlayerPassed = false}
 
 -- open GameState
 
@@ -244,7 +250,7 @@ drawCard s pf = record s { phase = preCombatMain } -- TODO: Actually draw cards
 -- withCurrent s f = record s { activePlayerState = f (activePlayerState s)}
 
 -- We do not allow more than one mana source, since only one exists in this matchup
-module _ (p : Player) (s : PlayerState p) where
+module _ {p : Player} (s : PlayerState p) where
     data HasMana : ℕ → Set where
         untappedLand : (pf : isCityTapped s ≡ false) → HasMana 2
         usingFloatingMana : (hasMana : floatingMana s ≡ 1) → HasMana 1
@@ -281,11 +287,11 @@ canActivateWalker2 refl s = canActivateWalker s
 activateWalker : ∀ (s : CardPosition walker) (canActivate : canActivateWalker s) → CardPosition walker
 activateWalker .(onBattlefield (record { isTapped = false ; summoningSickness = false ; nCounters = n })) (valid n) = onBattlefield record { isTapped = true ; summoningSickness = false ; nCounters = 1 + n}
 
-activateWalker1 : ∀ {p} (s : PlayerState p) (canActivate : canActivateWalker (walker1State s)) → PlayerState p
-activateWalker1 s ca = record s { floatingMana = floatingMana s ∸ 1 ; walker1State = activateWalker (walker1State s) ca}
+activateWalker1 : ∀ {p} (s : PlayerState p) (hasMana : HasMana s 1) (canActivate : canActivateWalker (walker1State s)) → PlayerState p
+activateWalker1 s hasMana ca = record (consumeMana s 1 hasMana) { walker1State = activateWalker (walker1State s) ca}
 
-activateWalker2 : ∀ (s : PlayerState brigyeetz) (canActivate : canActivateWalker (card2State s)) → PlayerState brigyeetz
-activateWalker2 s ca = record s { floatingMana = floatingMana s ∸ 1 ; card2State = activateWalker (card2State s) ca}
+activateWalker2 : ∀ (s : PlayerState brigyeetz) (hasMana : HasMana s 1) (canActivate : canActivateWalker (card2State s)) → PlayerState brigyeetz
+activateWalker2 s hasMana ca = record (consumeMana s 1 hasMana) { card2State = activateWalker (card2State s) ca}
 
 activateElixir : ∀ (s : PlayerState ozzie) → PlayerState ozzie
 activateElixir s = record s { healthTotal = 5 + healthTotal s ; floatingMana = floatingMana s ∸ 1 ; walker1State = graveyard2deck (walker1State s) ; card2State = inDeck} -- TODO: handle deck order
@@ -424,8 +430,8 @@ module _ (s : GameState) where
         aCastWalker1 : ∀ {p} → p ≡ activePlayer → inMainPhase → (hasMana : floatingMana (stateOfPlayer p) ≥ 2) → (isInHand : walker1State (stateOfPlayer p) ≡ inHand) → Action p
         aCastWalker2 : activePlayer ≡ brigyeetz → inMainPhase → (hasMana : floatingMana brigyeetzState ≥ 2) → (isInHand : card2State brigyeetzState ≡ inHand) → Action brigyeetz
         aCastElixir : activePlayer ≡ ozzie → inMainPhase → (hasMana : floatingMana ozzieState ≥ 1) → (isInHand : card2State ozzieState ≡ inHand) → Action ozzie
-        aActivateWalker1 : ∀ {p} (hasMana : floatingMana (stateOfPlayer p) ≥ 1) → (canActivate : canActivateWalker (walker1State (stateOfPlayer p))) → Action p
-        aActivateWalker2 : ∀ (hasMana : floatingMana brigyeetzState ≥ 1) → (canActivate : canActivateWalker (card2State brigyeetzState)) → Action brigyeetz
+        aActivateWalker1 : ∀ {p} (hasMana : HasMana (stateOfPlayer p) 1) → (canActivate : canActivateWalker (walker1State (stateOfPlayer p))) → Action p
+        aActivateWalker2 : ∀ (hasMana : HasMana brigyeetzState 1) → (canActivate : canActivateWalker (card2State brigyeetzState)) → Action brigyeetz
         aActivateElixir : (hasMana : floatingMana ozzieState ≥ 2) → (canActivate : card2State ozzieState ≡ onBattlefield elixirState) → Action ozzie
         aDeclareAttackers : ∀ {p} → phase ≡ combat CombatStart → p ≡ activePlayer → (atcks : AttackerInfo) → (AttackersValid s atcks) → Action p
         aDeclareBlockers : ∀ {p} (atcks : AttackerInfo) → phase ≡ combat (DeclaredAttackers atcks) → p ≡ opponent → (blcks : BlockerInfo atcks) → (AttackersValid s atcks) → Action p
@@ -438,8 +444,8 @@ module _ (s : GameState) where
     performAction p (aCastWalker1 curPl inMain hasMana isInHand) = withPlayer s p castWalker1
     performAction p (aCastWalker2 currBrigyeetz inMain hasMana isInHand) = withPlayer s brigyeetz castWalker2
     performAction p (aCastElixir currOzzie inMain hasMana isInHand) = withPlayer s ozzie castElixir
-    performAction p (aActivateWalker1 hasMana canActivate) = setPlayerState s p (activateWalker1 (stateOfPlayer p) canActivate)
-    performAction p (aActivateWalker2 hasMana canActivate) = setPlayerState s brigyeetz (activateWalker2 brigyeetzState canActivate)
+    performAction p (aActivateWalker1 hasMana canActivate) = setPlayerState s p (activateWalker1 (stateOfPlayer p) hasMana canActivate)
+    performAction p (aActivateWalker2 hasMana canActivate) = setPlayerState s brigyeetz (activateWalker2 brigyeetzState hasMana canActivate)
     performAction p (aActivateElixir hasMana canActivate) = withPlayer s ozzie activateElixir
     performAction p (aDeclareAttackers phs curPl atcks atcksValid) = withPlayer (changePhase (combat (DeclaredAttackers atcks)) s) activePlayer (tapAttackers atcks) -- record s { phase =  ; lastPlayerPassed = false}
     performAction p (aDeclareBlockers atcks phs curPl blcks atcksValid) = changePhase (combat (DeclaredBlockers atcks blcks)) s
