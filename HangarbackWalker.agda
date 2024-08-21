@@ -500,14 +500,14 @@ module _ (s : GameState) where
     -- Maybe add extra action to tapLand or integrate it into the actions that take two mana.
     -- Maybe disallow tapping land without using mana (e.g. by using a "has mana" proof, that either picks from pool or land)
     data Action : Player → Set where
-        aCastWalker1 : ∀ {p} → p ≡ activePlayer → inMainPhase → (hasMana : HasMana (stateOfPlayer p) 2) → (isInHand : walker1State (stateOfPlayer p) ≡ inHand) → Action p
-        aCastWalker2 : activePlayer ≡ brigyeetz → inMainPhase → (hasMana : HasMana brigyeetzState 2) → (isInHand : card2State brigyeetzState ≡ inHand) → Action brigyeetz
-        aCastElixir : activePlayer ≡ ozzie → inMainPhase → (hasMana : HasMana ozzieState 1) → (isInHand : card2State ozzieState ≡ inHand) → Action ozzie
-        aActivateWalker1 : ∀ {p} (hasMana : HasMana (stateOfPlayer p) 1) → (canActivate : canActivateWalker (walker1State (stateOfPlayer p))) → Action p
-        aActivateWalker2 : ∀ (hasMana : HasMana brigyeetzState 1) → (canActivate : canActivateWalker (card2State brigyeetzState)) → Action brigyeetz
-        aActivateElixir : (hasMana : HasMana ozzieState 2) → (canActivate : card2State ozzieState ≡ onBattlefield elixirState) → Action ozzie
-        aDeclareAttackers : ∀ {p} → phase ≡ combat CombatStart → p ≡ activePlayer → (atcks : AttackerInfo) → (AttackersValid s atcks) → Action p
-        aDeclareBlockers : ∀ {p} (atcks : AttackerInfo) → phase ≡ combat (DeclaredAttackers atcks) → p ≡ opponent → (blcks : BlockerInfo atcks) → (BlockersValid s atcks blcks) → Action p
+        aCastWalker1 : ∀ {p} (isActive : p ≡ activePlayer) (inMain : inMainPhase) (hasMana : HasMana (stateOfPlayer p) 2) (isInHand : walker1State (stateOfPlayer p) ≡ inHand) → Action p
+        aCastWalker2 : ∀ (isActive : activePlayer ≡ brigyeetz) (inMain : inMainPhase) (hasMana : HasMana brigyeetzState 2) (isInHand : card2State brigyeetzState ≡ inHand) → Action brigyeetz
+        aCastElixir : ∀ (isActive : activePlayer ≡ ozzie) (inMain : inMainPhase) (hasMana : HasMana ozzieState 1) (isInHand : card2State ozzieState ≡ inHand) → Action ozzie
+        aActivateWalker1 : ∀ {p} (hasMana : HasMana (stateOfPlayer p) 1) (canActivate : canActivateWalker (walker1State (stateOfPlayer p))) → Action p
+        aActivateWalker2 : ∀ (hasMana : HasMana brigyeetzState 1) (canActivate : canActivateWalker (card2State brigyeetzState)) → Action brigyeetz
+        aActivateElixir : ∀ (hasMana : HasMana ozzieState 2) (canActivate : card2State ozzieState ≡ onBattlefield elixirState) → Action ozzie
+        aDeclareAttackers : ∀ {p} (inCombat : phase ≡ combat CombatStart) (isActive : p ≡ activePlayer) (atcks : AttackerInfo) (validAtcks : AttackersValid s atcks) → Action p
+        aDeclareBlockers : ∀ {p} (atcks : AttackerInfo) (inCombat2 : phase ≡ combat (DeclaredAttackers atcks)) (isOpponent : p ≡ opponent) (blcks : BlockerInfo atcks) (validBlcks : BlockersValid s atcks blcks) → Action p
         aDoNothing : ∀ {p} → Action p
 
     performAction : ∀ p → Action p → GameState
