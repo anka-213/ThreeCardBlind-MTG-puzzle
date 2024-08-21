@@ -296,15 +296,35 @@ drawCard s = withPlayer s (GameState.activePlayer s) drawCardForPlayer
 
 -- We do not allow more than one mana source, since only one exists in this matchup
 module _ {p : Player} (s : PlayerState p) where
-    data HasMana : ℕ → Set where
-        untappedLand : (pf : isCityTapped s ≡ false) → HasMana 2
-        usingFloatingMana : (hasMana : floatingMana s ≡ 1) → HasMana 1
-        ignoreMana : HasMana 2 → HasMana 1
+    manaAvailable : ℕ
+    manaAvailable = if isCityTapped s then floatingMana s else 2
+    HasMana : ℕ → Set
+    HasMana 1 = if isCityTapped s then floatingMana s ≡ 1 else ⊤
+    HasMana 2 = isCityTapped s ≡ false
+    HasMana _ = ⊥
+    -- record HasMana (n : ℕ) : Set where
+    --     constructor yesMana
+    --     field
+    --         manaIneq : manaAvailable ≥ n
+    data ManaMethod : ℕ → Set where
+        untappedLand : (pf : isCityTapped s ≡ false) → ManaMethod 2
+        usingFloatingMana : (hasMana : floatingMana s ≡ 1) → ManaMethod 1
+        ignoreMana : (pf : isCityTapped s ≡ false) → ManaMethod 1
+
+    consumeManaUsing : ∀ n → ManaMethod n → PlayerState p
+    consumeManaUsing .2 (untappedLand pf) = record s { isCityTapped = true }
+    consumeManaUsing .1 (usingFloatingMana hasMana) = record s { floatingMana = 0 }
+    consumeManaUsing .1 (ignoreMana pf) = record s { isCityTapped = true ; floatingMana = 1 }
 
     consumeMana : ∀ n → HasMana n → PlayerState p
-    consumeMana .2 (untappedLand pf) = record s { isCityTapped = true }
-    consumeMana .1 (usingFloatingMana hasMana) = record s { floatingMana = 0 }
-    consumeMana .1 (ignoreMana (untappedLand pf)) = record s { isCityTapped = true ; floatingMana = 1 }
+    consumeMana 1 h with isCityTapped s in eq
+    ... | false = consumeManaUsing 1 (ignoreMana eq)
+    ... | true = consumeManaUsing 1 (usingFloatingMana h)
+    consumeMana 2 h = consumeManaUsing 2 (untappedLand h)
+
+    -- consumeMana .2 (untappedLand pf) = record s { isCityTapped = true }
+    -- consumeMana .1 (usingFloatingMana hasMana) = record s { floatingMana = 0 }
+    -- consumeMana .1 (ignoreMana pf) = record s { isCityTapped = true ; floatingMana = 1 }
 
 module _ (s : GameState) where
     open GameState s
@@ -511,10 +531,11 @@ module _ (s : GameState) where
 gameExample : GameState → GameState → Set
 gameExample = Star Step
 
+
 -- TODO: Move to new module
 ex1 : gameExample (initialGameState ozzie) {!   !}
 ex1 = begin
-    initialGameState ozzie ⟶⟨ doAction ozzie (aCastWalker1 refl main1 (untappedLand refl) refl) ⟩
+    initialGameState ozzie ⟶⟨ doAction ozzie (aCastWalker1 refl main1 refl refl) ⟩
     game preCombatMain ozzie (record ozzieStart
         { isCityTapped = true
         ; walker1State = onBattlefield walkerInitialState
@@ -533,7 +554,7 @@ ex1 = begin
   game postCombatMain ozzie (record ozzieStart { isCityTapped = true ; walker1State = onBattlefield walkerInitialState
         }) brigyeetzStart true ⟶⟨ doAction brigyeetz aDoNothing ⟩
   game preCombatMain brigyeetz (record ozzieStart { isCityTapped = true ; walker1State = onBattlefield walkerInitialState
-        }) brigyeetzStart false ⟶⟨ doAction brigyeetz (aCastWalker2 refl main1 (untappedLand refl) refl) ⟩
+        }) brigyeetzStart false ⟶⟨ doAction brigyeetz (aCastWalker2 refl main1 (refl) refl) ⟩
   game preCombatMain brigyeetz (record ozzieStart { isCityTapped = true ; walker1State = onBattlefield walkerInitialState
         }) (record brigyeetzStart {isCityTapped = true ; card2State = onBattlefield walkerInitialState}) false ⟶⟨ doAction brigyeetz aDoNothing ⟩
   game preCombatMain brigyeetz (record ozzieStart { isCityTapped = true ; walker1State = onBattlefield walkerInitialState
@@ -604,7 +625,7 @@ losingGame p st = ∀ action → winningGame (opponentOf p) (performAction st p 
 
 
 ozzieWins : winningGame ozzie (initialGameState ozzie)
-ozzieWins = willWin tt (aCastWalker1 refl main1 (untappedLand refl) refl , λ where
+ozzieWins = willWin tt (aCastWalker1 refl main1 refl refl , λ where
   aDoNothing → willWin tt (aDoNothing , λ where
     aDoNothing → willWin tt (aDoNothing , λ where
       aDoNothing → willWin tt (aDoNothing , λ where
@@ -660,15 +681,9 @@ big-walker-game-wins s@record
     } (big1 , big2) = willWin tt
         ((aDeclareAttackers refl refl (record { thopters = 0 ; walker1Attack = true ; walker2Attack = true })
         (record { thoptersValid = z≤n ; walker1Valid = valid size1 ; walker2Valid = refl , valid size2 })) , λ where
-            (aActivateWalker1 (ignoreMana (untappedLand ())) canActivate)
-            (aActivateElixir (untappedLand ()) canActivate)
             (aDeclareBlockers atcks isCombat isOzzie blcks blcksValid) → {!   !}
             aDoNothing → willWin tt (aDoNothing , (λ where
-                (aActivateWalker1 (ignoreMana (untappedLand ())) canActivate)
-                (aActivateElixir (untappedLand ()) canActivate)
                 aDoNothing → willWin tt (aDoNothing , λ where
-                    (aActivateWalker1 (ignoreMana (untappedLand ())) canActivate)
-                    (aActivateElixir (hasMana) canActivate) → {! hasMana !}
                     aDoNothing → hasWon (m≤n⇒m∸n≡0 {health} {size1 + size2} (≤-trans big1 (m≤m+n size1 size2)))))))
 
 -- TODO: Handle priority
@@ -678,3 +693,5 @@ big-walker-game-wins s@record
 
 -- Goal: Prove isDraw or losingGame or winningGame for both initial games
 -- Method: Find an invariant that holds that can be used to prove that any game with this invariant will be a win/loss for some player
+
+-- -}
