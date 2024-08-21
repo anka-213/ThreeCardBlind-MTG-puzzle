@@ -465,7 +465,7 @@ walkerSize {elixir} s = 0
 reduceHealthTotal : ∀ {p} → ℕ → PlayerState p → PlayerState p
 reduceHealthTotal n s = record s { healthTotal = healthTotal s ∸ n }
 takeDamage : ∀ {p} (a : AttackerInfo) → BlockerInfo a → PlayerState p → PlayerState (opponentOf p) → PlayerState (opponentOf p)
-takeDamage a b attacker defender = reduceHealthTotal (AttackerInfo.thopters a + damageFromWalker1 + damageFromWalker2) defender
+takeDamage a b attacker defender = reduceHealthTotal (AttackerInfo.thopters a + damageFromWalker1 a b + damageFromWalker2 a b) defender
     where
     damageFromWalker1 : (a : AttackerInfo) → BlockerInfo a → ℕ
     damageFromWalker1 record {walker1Attack = false} b = 0
