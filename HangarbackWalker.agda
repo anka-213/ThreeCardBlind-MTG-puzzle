@@ -299,31 +299,17 @@ drawCard s = withPlayer s (GameState.activePlayer s) drawCardForPlayer
 
 -- We do not allow more than one mana source, since only one exists in this matchup
 module _ {p : Player} (s : PlayerState p) where
-    -- manaAvailable : ℕ
-    -- manaAvailable = if isCityUntapped s then 2 else floatingMana s
-    -- record HasMana (n : ℕ) : Set where
-    --     constructor yesMana
-    --     field
-    --         manaIneq : manaAvailable ≥ n
-    data ManaMethod : ℕ → Set where
-        untappedLand : (pf : T (isCityUntapped s)) → ManaMethod 2
-        usingFloatingMana : (hasMana : T (floatingMana s)) → ManaMethod 1
-        ignoreMana : (pf : T (isCityUntapped s)) → ManaMethod 1
-
     HasMana : ℕ → Set
-    HasMana 1 = T (isCityUntapped s ∨ floatingMana s) × (T (isCityUntapped s) ⊎ T (floatingMana s))
+    HasMana 1 = T (isCityUntapped s ∨ floatingMana s)
     HasMana 2 = T (isCityUntapped s)
     HasMana _ = ⊥
 
-    consumeManaUsing : ∀ n → ManaMethod n → PlayerState p
-    consumeManaUsing .2 (untappedLand pf) = record s { isCityUntapped = false }
-    consumeManaUsing .1 (usingFloatingMana hasMana) = record s { floatingMana = false }
-    consumeManaUsing .1 (ignoreMana pf) = record s { isCityUntapped = false ; floatingMana = true }
-
     consumeMana : ∀ n → HasMana n → PlayerState p
-    consumeMana 1 (h , inj₁ pf) = consumeManaUsing 1 (ignoreMana pf)
-    consumeMana 1 (h , inj₂ pf) = consumeManaUsing 1 (usingFloatingMana pf)
-    consumeMana 2 h = consumeManaUsing 2 (untappedLand h)
+    consumeMana 1 h = record s
+        { isCityUntapped = false
+        ; floatingMana = isCityUntapped s -- If we used the land, we have a spare mana
+        }
+    consumeMana 2 h = record s { isCityUntapped = false }
 
     -- consumeMana .2 (untappedLand pf) = record s { isCityUntapped = false }
     -- consumeMana .1 (usingFloatingMana hasMana) = record s { floatingMana = false }
@@ -730,9 +716,8 @@ more-health-is-good-b : ∀ (s : GameState) → winningGame brigyeetz s → winn
 more-health-is-good-b s (hasWon x) = hasWon x
 more-health-is-good-b s (willWin isAliv (aCastWalker1 isActive inMain hasMana isInHand                , snd)) = willWin tt (aCastWalker1 isActive inMain hasMana isInHand                   , more-opponent-health-is-bad-o _ snd)
 more-health-is-good-b s (willWin isAliv (aCastWalker2 isActive inMain hasMana isInHand                , snd)) = willWin tt (aCastWalker2 isActive inMain hasMana isInHand                   , more-opponent-health-is-bad-o _ snd)
-more-health-is-good-b s (willWin isAliv (aActivateWalker1 hasMana@(_ , inj₁ pf) canActivate           , snd)) = willWin tt (aActivateWalker1 hasMana canActivate                            , more-opponent-health-is-bad-o _ snd)
-more-health-is-good-b s (willWin isAliv (aActivateWalker1 hasMana@(_ , inj₂ pf) canActivate           , snd)) = willWin tt (aActivateWalker1 hasMana canActivate                            , more-opponent-health-is-bad-o _ snd)
-more-health-is-good-b s (willWin isAliv (aActivateWalker2 hasMana canActivate                         , snd)) = willWin tt (aActivateWalker2 hasMana canActivate                            , {! more-opponent-health-is-bad-o _ snd  !})
+more-health-is-good-b s (willWin isAliv (aActivateWalker1 hasMana canActivate                         , snd)) = willWin tt (aActivateWalker1 hasMana canActivate                            , more-opponent-health-is-bad-o _ snd)
+more-health-is-good-b s (willWin isAliv (aActivateWalker2 hasMana canActivate                         , snd)) = willWin tt (aActivateWalker2 hasMana canActivate                            , more-opponent-health-is-bad-o _ snd)
 more-health-is-good-b s (willWin isAliv (aDeclareAttackers inCombat isActive atcks validAtcks         , snd)) = willWin tt (aDeclareAttackers inCombat isActive atcks {!   !}            , {! more-opponent-health-is-bad-o _ snd  !})
 more-health-is-good-b s (willWin isAliv (aDeclareBlockers atcks inCombat2 isOpponent blcks validBlcks , snd)) = willWin tt ({! aDeclareBlockers atcks inCombat2 isOpponent blcks validBlcks!}    , {! more-opponent-health-is-bad-o _ snd  !})
 more-health-is-good-b s (willWin isAliv (aDoNothing                                                   , snd)) = willWin tt (aDoNothing                                                      , {! more-opponent-health-is-bad-o _ snd  !})
