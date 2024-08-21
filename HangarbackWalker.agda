@@ -135,6 +135,19 @@ attackContextFor ps = record
     ; availableWalker2 = isTappableWalker (card2State ps)
     }
 
+record BlockerContext : Set where
+    pattern
+    field
+        availableThopters : ℕ
+        availableWalker1 : Bool
+        availableWalker2 : Bool
+
+blockerContextFor : ∀ {p} → PlayerState p → BlockerContext
+blockerContextFor ps = record
+    { availableThopters = untappedUnsickThopters ps + summoningSickThopters ps
+    ; availableWalker1 = isUntappedWalker (walker1State ps)
+    ; availableWalker2 = isUntappedWalker (card2State ps)
+    }
 
 -- TODO: make this depend on the rest of the state
 module _ (ac : AttackContext) where
@@ -149,25 +162,38 @@ module _ (ac : AttackContext) where
         isWalker1Attack = is-just walker1Attack
         isWalker2Attack = is-just walker2Attack
 
+    open AttackerInfo
 
     -- TODO: fix blockers
     -- TODO: Declare blocker order
 
     -- TODO: Limit based on attackers
-    data BlockTarget : Set where
-        blockThopter : BlockTarget
-        blockWalker1 : BlockTarget
-        blockWalker2 : BlockTarget
-        noBlock : BlockTarget
+    data BlockTarget (a : AttackerInfo) : Set where
+        blockThopter : NonZero (nThopters a) → BlockTarget a
+        blockWalker1 : Is-just (walker1Attack a) → BlockTarget a
+        blockWalker2 : Is-just (walker2Attack a) → BlockTarget a
+        -- noBlock : BlockTarget
 
-    record BlockerInfo (a : AttackerInfo) : Set where
+    maybe2nat : {A : Set} → Maybe A → ℕ
+    maybe2nat (just _) = 1
+    maybe2nat nothing = 0
+
+    record BlockerInfo (a : AttackerInfo) (bc : BlockerContext) : Set where
         field
-            thopter-thopter-blocks : ℕ
-            thopter-block-walker1 : Bool
-            thopter-block-walker2 : Bool
-            walker1Block : BlockTarget
-            -- TODO: Only if we have one
-            walker2Block : BlockTarget
+            thopter-thopter-blocks : Σ[ n ∈ ℕ ] n ≤ nThopters a
+            thopter-block-walker1 : Maybe (Is-just (walker1Attack a))
+            thopter-block-walker2 : Maybe (Is-just (walker2Attack a))
+            total-thopters : maybe2nat thopter-block-walker1 + maybe2nat thopter-block-walker2 + proj₁ thopter-thopter-blocks ≤ BlockerContext.availableThopters bc
+            walker1Block : Maybe (BlockTarget a × T (BlockerContext.availableWalker1 bc))
+            walker2Block : Maybe (BlockTarget a × T (BlockerContext.availableWalker2 bc))
+
+    -- record BlockersValid (pps : AttackContext) (a : AttackerInfo pps) (b : BlockerInfo pps a) : Set where
+    --     field
+    --         walker1Valid : if isBlocking (BlockerInfo.walker1Block b) then T (isUntappedWalker (walker1State opponentState)) else ⊤
+    --         walker2Valid : if isBlocking (BlockerInfo.walker2Block b) then T (isUntappedWalker (card2State opponentState)) else ⊤
+    --         -- valid target
+    --         -- not too many thopters
+    --         -- TODO implement this
 
     {-
     Possible blocks:
@@ -180,23 +206,21 @@ module _ (ac : AttackContext) where
 
     -}
 
-    noBlockers : ∀ a → BlockerInfo a
-    noBlockers a = record
-        { thopter-thopter-blocks = 0
-        ; thopter-block-walker1 = false
-        ; thopter-block-walker2 = false
-        ; walker1Block = noBlock
-        ; walker2Block = noBlock
+    noBlockers : ∀ a bc → BlockerInfo a bc
+    noBlockers a bc = record
+        { thopter-thopter-blocks = 0 , z≤n
+        ; thopter-block-walker1 = nothing
+        ; thopter-block-walker2 = nothing
+        ; total-thopters = z≤n
+        ; walker1Block = nothing
+        ; walker2Block = nothing
         }
 
-isBlocking : ∀ {ps : AttackContext} → BlockTarget ps → Bool
-isBlocking noBlock = false
-isBlocking _ = true
 
 data CombatStep : Set where
     CombatStart : CombatStep
     DeclaredAttackers : (ac : AttackContext) → AttackerInfo ac → CombatStep
-    DeclaredBlockers : (ac : AttackContext) → (a : AttackerInfo ac) → BlockerInfo ac a → CombatStep
+    DeclaredBlockers : (ac : AttackContext) → (a : AttackerInfo ac) → {bc : BlockerContext} → BlockerInfo ac a bc → CombatStep
 
 
 data Phase : Set where
@@ -418,16 +442,6 @@ data isMain : Phase → Set where
 -- doNothing (game postCombatMain activePlayer ozzieState brigyeetzState) p = {!   !}
 -- doNothing (game cleanup activePlayer ozzieState brigyeetzState) p = {!   !}
 
-module _ (s : GameState) where
-    open GameState s
-
-    record BlockersValid (pps : AttackContext) (a : AttackerInfo pps) (b : BlockerInfo pps a) : Set where
-        field
-            walker1Valid : if isBlocking (BlockerInfo.walker1Block b) then T (isUntappedWalker (walker1State opponentState)) else ⊤
-            walker2Valid : if isBlocking (BlockerInfo.walker2Block b) then T (isUntappedWalker (card2State opponentState)) else ⊤
-            -- valid target
-            -- not too many thopters
-            -- TODO implement this
 
 
 mapCard : ∀ {c} → (CardState c → CardState c) → CardPosition c → CardPosition c
@@ -491,22 +505,22 @@ walkerSize {elixir} s = 0
 
 reduceHealthTotal : ∀ {p} → ℕ → PlayerState p → PlayerState p
 reduceHealthTotal n s = record s { healthTotal = healthTotal s ∸ n }
-module _ {p} {pps : AttackContext} where
-    takeDamage : ∀ (a : AttackerInfo pps) (b : BlockerInfo pps a) → PlayerState p → PlayerState (opponentOf p) → PlayerState (opponentOf p)
+module _ {p} {pps : AttackContext} {bc : BlockerContext} where
+    takeDamage : ∀ (a : AttackerInfo pps) (b : BlockerInfo pps a bc) → PlayerState p → PlayerState (opponentOf p) → PlayerState (opponentOf p)
     takeDamage a b attacker defender = reduceHealthTotal (AttackerInfo.nThopters a + damageFromWalker1 a b + damageFromWalker2 a b) defender
         where
-        damageFromWalker1 : (a : AttackerInfo pps) → BlockerInfo pps a → ℕ
+        damageFromWalker1 : (a : AttackerInfo pps) → BlockerInfo pps a bc → ℕ
         damageFromWalker1 record { walker1Attack = nothing} b = 0
-        damageFromWalker1 record { walker1Attack = just _ } record { thopter-block-walker1 = true } = 0
-        damageFromWalker1 record { walker1Attack = just _ } record { walker1Block = blockWalker1 } = 0
-        damageFromWalker1 record { walker1Attack = just _ } record { walker2Block = blockWalker1 } = 0
+        damageFromWalker1 record { walker1Attack = just _ } record { thopter-block-walker1 = just _ } = 0
+        damageFromWalker1 record { walker1Attack = just _ } record { walker1Block = just (blockWalker1 _ , _) } = 0
+        damageFromWalker1 record { walker1Attack = just _ } record { walker2Block = just (blockWalker1 _ , _) } = 0
         damageFromWalker1 record { walker1Attack = just _ } _ = walkerSize (walker1State attacker)
 
-        damageFromWalker2 : (a : AttackerInfo pps) → BlockerInfo pps a → ℕ
+        damageFromWalker2 : (a : AttackerInfo pps) → BlockerInfo pps a bc → ℕ
         damageFromWalker2 record { walker2Attack = nothing} b = 0
-        damageFromWalker2 record { walker2Attack = just _ } record { thopter-block-walker2 = true } = 0
-        damageFromWalker2 record { walker2Attack = just _ } record { walker1Block = blockWalker2 } = 0
-        damageFromWalker2 record { walker2Attack = just _ } record { walker2Block = blockWalker2 } = 0
+        damageFromWalker2 record { walker2Attack = just _ } record { thopter-block-walker2 = just _ } = 0
+        damageFromWalker2 record { walker2Attack = just _ } record { walker1Block = just (blockWalker2 _ , _) } = 0
+        damageFromWalker2 record { walker2Attack = just _ } record { walker2Block = just (blockWalker2 _ , _) } = 0
         damageFromWalker2 record { walker2Attack = just _ } _ = walkerSize (card2State attacker)
 
     -- TODO: Handle thopters
@@ -514,7 +528,7 @@ module _ {p} {pps : AttackContext} where
 
 module _ (s : GameState) where
     open GameState s
-    resolveCombat : ∀ {pps : AttackContext} → (a : AttackerInfo pps) → (b : BlockerInfo pps a) → (phase ≡ combat (DeclaredBlockers pps a b)) → GameState
+    resolveCombat : ∀ {pps : AttackContext} {bc : BlockerContext} → (a : AttackerInfo pps) → (b : BlockerInfo pps a bc) → (phase ≡ combat (DeclaredBlockers pps a b)) → GameState
     resolveCombat a b r = withPlayer s opponent (takeDamage a b (activePlayerState))
     -- TODO: Handle blockers
     -- TODO: Allow choosing order of attacking blockers
@@ -523,7 +537,7 @@ module _ (s : GameState) where
 endPhase : GameState → GameState
 endPhase s@record { phase = preCombatMain } = changePhase s (combat CombatStart)
 endPhase s@record { phase = combat CombatStart } = changePhase s postCombatMain -- If no attackers are declared, skip combat
-endPhase s@record { phase = combat (DeclaredAttackers pps a) } = changePhase s (combat (DeclaredBlockers pps a (noBlockers pps a)))
+endPhase s@record { phase = combat (DeclaredAttackers pps a) } = changePhase s (combat (DeclaredBlockers pps a (noBlockers pps a (blockerContextFor (GameState.opponentState s)))))
 endPhase s@record { phase = combat (DeclaredBlockers pps a b) } = changePhase (resolveCombat s a b refl) postCombatMain
 endPhase s@record { phase = postCombatMain } = endTurn s
 
@@ -550,7 +564,7 @@ module _ (s : GameState) where
         aActivateWalker2 : ∀ (hasMana : HasMana brigyeetzState 1) (canActivate : canActivateWalker (card2State brigyeetzState)) → Action brigyeetz
         aActivateElixir : ∀ (hasMana : HasMana ozzieState 2) (canActivate : card2State ozzieState ≡ onBattlefield elixirState) → Action ozzie
         aDeclareAttackers : ∀ {p} (inCombat : phase ≡ combat CombatStart) (isActive : p ≡ activePlayer) (atcks : AttackerInfo (attackContextFor activePlayerState)) → Action p
-        aDeclareBlockers : ∀ {p} {pps : AttackContext} (atcks : AttackerInfo pps) (inCombat2 : phase ≡ combat (DeclaredAttackers pps atcks)) (isOpponent : p ≡ opponent) (blcks : BlockerInfo pps atcks) (validBlcks : BlockersValid s pps atcks blcks) → Action p
+        aDeclareBlockers : ∀ {p} {pps : AttackContext} (atcks : AttackerInfo pps) (inCombat2 : phase ≡ combat (DeclaredAttackers pps atcks)) (isOpponent : p ≡ opponent) (blcks : BlockerInfo pps atcks (blockerContextFor opponentState)) → Action p
         aDoNothing : ∀ {p} → Action p
 
     performAction : ∀ p → Action p → GameState
@@ -561,7 +575,7 @@ module _ (s : GameState) where
     performAction p (aActivateWalker2 hasMana canActivate) = setPlayerState s brigyeetz (activateWalker2 brigyeetzState hasMana canActivate)
     performAction p (aActivateElixir hasMana canActivate) = withPlayerCost s ozzie 2 hasMana activateElixir
     performAction p (aDeclareAttackers phs curPl atcks) = withPlayer (changePhase s (combat (DeclaredAttackers _ atcks))) activePlayer (tapAttackers atcks) -- record s { phase =  ; lastPlayerPassed = false}
-    performAction p (aDeclareBlockers atcks phs curPl blcks blcksValid) = changePhase s (combat (DeclaredBlockers _ atcks blcks))
+    performAction p (aDeclareBlockers atcks phs curPl blcks) = changePhase s (combat (DeclaredBlockers _ atcks blcks))
     performAction p (aDoNothing) = doNothing p s
     -- _⇒_ : GameState → Set
     -- _⇒_ = Action
@@ -726,7 +740,7 @@ big-walker-game-wins s@record
         }
     } (big1 , big2) = willWin tt
         ((aDeclareAttackers refl refl (record { thoptersAttack = 0 , z≤n ; walker1Attack = just tt ; walker2Attack = just tt })) , λ where
-            (aDeclareBlockers atcks isCombat isOzzie blcks blcksValid) → {!   !}
+            (aDeclareBlockers atcks isCombat isOzzie blcks) → {!   !}
             aDoNothing → willWin tt $ aDoNothing , λ where
                 aDoNothing → willWin tt $ aDoNothing , λ where
                     aDoNothing → hasWon (m≤n⇒m∸n≡0 {health} {size1 + size2} (≤-trans big1 (m≤m+n size1 size2))))
@@ -756,7 +770,7 @@ more-health-is-good-b s (willWin isAliv (aCastWalker2 isActive inMain hasMana is
 more-health-is-good-b s (willWin isAliv (aActivateWalker1 hasMana canActivate                         , snd)) = willWin tt (aActivateWalker1 hasMana canActivate                            , more-opponent-health-is-bad-o _ snd)
 more-health-is-good-b s (willWin isAliv (aActivateWalker2 hasMana canActivate                         , snd)) = willWin tt (aActivateWalker2 hasMana canActivate                            , more-opponent-health-is-bad-o _ snd)
 more-health-is-good-b s (willWin isAliv (aDeclareAttackers inCombat isActive@refl atcks               , snd)) = willWin tt (aDeclareAttackers inCombat isActive atcks                       , more-opponent-health-is-bad-o _ snd)
-more-health-is-good-b s@record{activePlayer = ozzie} (willWin isAliv (aDeclareBlockers atcks inCombat2 isOpponent@refl blcks validBlcks , snd)) = willWin tt ({! aDeclareBlockers atcks inCombat2 isOpponent blcks validBlcks!}    , {! more-opponent-health-is-bad-o _ snd  !})
+more-health-is-good-b s@record{activePlayer = ozzie} (willWin isAliv (aDeclareBlockers atcks inCombat2 isOpponent@refl blcks , snd)) = willWin tt ({! aDeclareBlockers atcks inCombat2 isOpponent blcks !}    , {! more-opponent-health-is-bad-o _ snd  !})
 more-health-is-good-b s (willWin isAliv (aDoNothing                                                   , snd)) = willWin tt (aDoNothing                                                      , {! more-opponent-health-is-bad-o _ snd  !})
 more-health-is-good : ∀ p (s : GameState) → winningGame p s → winningGame p (mapPlayer p s λ sp → record sp { healthTotal = suc (healthTotal sp)})
 more-health-is-good ozzie s (hasWon x) = hasWon x
@@ -766,14 +780,14 @@ more-health-is-good brigyeetz s (willWin isAliv (aCastWalker2 isActive inMain ha
 more-health-is-good brigyeetz s (willWin isAliv (aActivateWalker1 hasMana canActivate                         , snd)) = willWin tt (aActivateWalker1 {!   !} canActivate                            , {!   !})
 more-health-is-good brigyeetz s (willWin isAliv (aActivateWalker2 hasMana canActivate                         , snd)) = willWin tt (aActivateWalker2 {!   !} canActivate                            , {!   !})
 more-health-is-good brigyeetz s (willWin isAliv (aDeclareAttackers inCombat isActive atcks                    , snd)) = willWin tt (aDeclareAttackers inCombat isActive {!atcks!}                   , {!   !})
-more-health-is-good brigyeetz s (willWin isAliv (aDeclareBlockers atcks inCombat2 isOpponent blcks validBlcks , snd)) = willWin tt ({! aDeclareBlockers atcks inCombat2 isOpponent blcks validBlcks!}    , {!   !})
+more-health-is-good brigyeetz s (willWin isAliv (aDeclareBlockers atcks inCombat2 isOpponent blcks , snd)) = willWin tt ({! aDeclareBlockers atcks inCombat2 isOpponent blcks !}    , {!   !})
 more-health-is-good brigyeetz s (willWin isAliv (aDoNothing                                                   , snd)) = willWin tt (aDoNothing                                                      , {!   !})
 more-health-is-good ozzie     s (willWin isAliv (aCastWalker1 isActive inMain hasMana isInHand                , snd)) = willWin tt (aCastWalker1 isActive inMain hasMana isInHand                   , {!   !})
 more-health-is-good ozzie     s (willWin isAliv (aCastElixir isActive inMain hasMana isInHand                 , snd)) = willWin tt (aCastElixir isActive inMain {!   !} isInHand                    , {!   !})
 more-health-is-good ozzie     s (willWin isAliv (aActivateWalker1 hasMana canActivate                         , snd)) = willWin tt (aActivateWalker1 {!   !} canActivate                            , {!   !})
 more-health-is-good ozzie     s (willWin isAliv (aActivateElixir hasMana canActivate                          , snd)) = willWin tt (aActivateElixir hasMana canActivate                             , {!   !})
 more-health-is-good ozzie     s (willWin isAliv (aDeclareAttackers inCombat isActive atcks                    , snd)) = willWin tt ({! aDeclareAttackers inCombat isActive atcks          !}            , {!   !})
-more-health-is-good ozzie     s (willWin isAliv (aDeclareBlockers atcks inCombat2 isOpponent blcks validBlcks , snd)) = willWin tt ({! aDeclareBlockers atcks inCombat2 isOpponent blcks validBlcks!}    , {!   !})
+more-health-is-good ozzie     s (willWin isAliv (aDeclareBlockers atcks inCombat2 isOpponent blcks , snd)) = willWin tt ({! aDeclareBlockers atcks inCombat2 isOpponent blcks !}    , {!   !})
 more-health-is-good ozzie     s (willWin isAliv (aDoNothing                                                   , snd)) = willWin tt ({! aDoNothing!}                                                      , {!   !})
 -- more-health-is-good ozzie      s (willWin isAliv (aCastWalker1 x x₁ hasMana isInHand , snd)) = willWin tt {!   !}
 -- more-health-is-good brigyeetz  s (willWin isAliv (aCastWalker1 x x₁ hasMana isInHand , snd)) = willWin tt {!   !}
@@ -783,7 +797,7 @@ more-health-is-good ozzie     s (willWin isAliv (aDoNothing                     
 -- more-health-is-good .brigyeetz s (willWin isAliv (aActivateWalker2 hasMana canActivate , snd)) = {!   !}
 -- more-health-is-good .ozzie     s (willWin isAliv (aActivateElixir hasMana canActivate , snd)) = {!   !}
 -- more-health-is-good p          s (willWin isAliv (aDeclareAttackers x x₁ atcks x₂ , snd)) = {!   !}
--- more-health-is-good p          s (willWin isAliv (aDeclareBlockers atcks x x₁ blcks x₂ , snd)) = {!   !}
+-- more-health-is-good p          s (willWin isAliv (aDeclareBlockers atcks x x₁ blcks , snd)) = {!   !}
 -- more-health-is-good p          s (willWin isAliv (aDoNothing , snd)) = {!   !}
 
 -- -}
