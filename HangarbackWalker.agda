@@ -465,10 +465,24 @@ walkerSize {elixir} s = 0
 reduceHealthTotal : ∀ {p} → ℕ → PlayerState p → PlayerState p
 reduceHealthTotal n s = record s { healthTotal = healthTotal s ∸ n }
 takeDamage : ∀ {p} (a : AttackerInfo) → BlockerInfo a → PlayerState p → PlayerState (opponentOf p) → PlayerState (opponentOf p)
-takeDamage a b attacker defender = reduceHealthTotal (AttackerInfo.thopters a
-    + (if AttackerInfo.walker1Attack a then walkerSize (walker1State attacker) else 0)
-    + (if AttackerInfo.walker2Attack a then walkerSize (card2State attacker) else 0)
-    ) defender
+takeDamage a b attacker defender = reduceHealthTotal (AttackerInfo.thopters a + damageFromWalker1 + damageFromWalker2) defender
+    where
+    damageFromWalker1 : (a : AttackerInfo) → BlockerInfo a → ℕ
+    damageFromWalker1 record {walker1Attack = false} b = 0
+    damageFromWalker1 record { walker1Attack = true } record { thopter-block-walker1 = true } = 0
+    damageFromWalker1 record { walker1Attack = true } record { walker1Block = blockWalker1 } = 0
+    damageFromWalker1 record { walker1Attack = true } record { walker2Block = blockWalker1 } = 0
+    damageFromWalker1 record { walker1Attack = true } _ = walkerSize (walker1State attacker)
+
+    damageFromWalker2 : (a : AttackerInfo) → BlockerInfo a → ℕ
+    damageFromWalker2 record {walker2Attack = false} b = 0
+    damageFromWalker2 record { walker2Attack = true } record { thopter-block-walker2 = true } = 0
+    damageFromWalker2 record { walker2Attack = true } record { walker1Block = blockWalker2 } = 0
+    damageFromWalker2 record { walker2Attack = true } record { walker2Block = blockWalker2 } = 0
+    damageFromWalker2 record { walker2Attack = true } _ = walkerSize (card2State attacker)
+
+-- TODO: Handle thopters
+-- TODO: Destroy smaller creatures
 
 resolveCombat : ∀ a → (b : BlockerInfo a) → (s : GameState) → (GameState.phase s ≡ combat (DeclaredBlockers a b)) → GameState
 resolveCombat a b s r = withPlayer s opponent (takeDamage a b (activePlayerState))
