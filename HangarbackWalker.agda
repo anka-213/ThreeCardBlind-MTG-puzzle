@@ -9,6 +9,7 @@ open import Data.Empty
 open import Data.Bool hiding (_≤_)
 open import Data.Product
 open import Data.List
+open import Relation.Nullary
 open import Relation.Binary.Construct.Closure.ReflexiveTransitive
 open import Relation.Binary.Construct.Closure.ReflexiveTransitive.Properties
 
@@ -298,10 +299,6 @@ drawCard s = withPlayer s (GameState.activePlayer s) drawCardForPlayer
 module _ {p : Player} (s : PlayerState p) where
     manaAvailable : ℕ
     manaAvailable = if isCityTapped s then floatingMana s else 2
-    HasMana : ℕ → Set
-    HasMana 1 = if isCityTapped s then floatingMana s ≡ 1 else ⊤
-    HasMana 2 = isCityTapped s ≡ false
-    HasMana _ = ⊥
     -- record HasMana (n : ℕ) : Set where
     --     constructor yesMana
     --     field
@@ -311,15 +308,19 @@ module _ {p : Player} (s : PlayerState p) where
         usingFloatingMana : (hasMana : floatingMana s ≡ 1) → ManaMethod 1
         ignoreMana : (pf : isCityTapped s ≡ false) → ManaMethod 1
 
+    HasMana : ℕ → Set
+    HasMana 1 = (if isCityTapped s then floatingMana s ≡ 1 else ⊤) × (Dec (isCityTapped s ≡ false))
+    HasMana 2 = isCityTapped s ≡ false
+    HasMana _ = ⊥
+
     consumeManaUsing : ∀ n → ManaMethod n → PlayerState p
     consumeManaUsing .2 (untappedLand pf) = record s { isCityTapped = true }
     consumeManaUsing .1 (usingFloatingMana hasMana) = record s { floatingMana = 0 }
     consumeManaUsing .1 (ignoreMana pf) = record s { isCityTapped = true ; floatingMana = 1 }
 
     consumeMana : ∀ n → HasMana n → PlayerState p
-    consumeMana 1 h with isCityTapped s in eq
-    ... | false = consumeManaUsing 1 (ignoreMana eq)
-    ... | true = consumeManaUsing 1 (usingFloatingMana h)
+    consumeMana 1 (h , yes pf) = consumeManaUsing 1 (ignoreMana pf)
+    consumeMana 1 (h , (no ¬pf)) = consumeManaUsing 1 {!   !}
     consumeMana 2 h = consumeManaUsing 2 (untappedLand h)
 
     -- consumeMana .2 (untappedLand pf) = record s { isCityTapped = true }
@@ -402,7 +403,10 @@ record AttackersValid (s : GameState) (a : AttackerInfo) : Set where
 
 record BlockersValid (s : GameState) (a : AttackerInfo) (b : BlockerInfo a) : Set where
     field
-        walker1Valid : if isBlocking (BlockerInfo.walker1Block b) then canActivateWalker (walker1State (GameState.opponentState s)) else ⊤
+        walker1Valid : if isBlocking (BlockerInfo.walker1Block b) then isUntappedWalker (walker1State (GameState.opponentState s)) else ⊤
+        walker2Valid : if isBlocking (BlockerInfo.walker2Block b) then isUntappedWalker (card2State (GameState.opponentState s)) else ⊤
+    -- valid target
+    -- not too many thopters
     -- TODO implement this
 
 mapCard : ∀ {c} → (CardState c → CardState c) → CardPosition c → CardPosition c
@@ -545,6 +549,7 @@ module _ (s : GameState) where
 gameExample : GameState → GameState → Set
 gameExample = Star Step
 
+{-
 
 -- TODO: Move to new module
 ex1 : gameExample (initialGameState ozzie) {!   !}
@@ -605,6 +610,8 @@ ex1 = begin
         open StarReasoning Step
         myAttackers : AttackerInfo
         myAttackers = record { thopters = 0 ; walker1Attack = true ; walker2Attack = false }
+
+-}
 
 -- -- TODO: Proper priority
 -- data PlayerStep (p : Player) : GameState → GameState → Set where
@@ -694,11 +701,13 @@ big-walker-game-wins s@record
         }
     } (big1 , big2) = willWin tt
         ((aDeclareAttackers refl refl (record { thopters = 0 ; walker1Attack = true ; walker2Attack = true })
-        (record { thoptersValid = z≤n ; walker1Valid = valid size1 ; walker2Valid = refl , valid size2 })) , λ where
+                                      (record { thoptersValid = z≤n ; walker1Valid = valid size1 ; walker2Valid = refl , valid size2 })) , λ where
             (aDeclareBlockers atcks isCombat isOzzie blcks blcksValid) → {!   !}
-            aDoNothing → willWin tt (aDoNothing , (λ where
-                aDoNothing → willWin tt (aDoNothing , λ where
-                    aDoNothing → hasWon (m≤n⇒m∸n≡0 {health} {size1 + size2} (≤-trans big1 (m≤m+n size1 size2)))))))
+            aDoNothing → willWin tt $ aDoNothing , λ where
+                aDoNothing → willWin tt $ aDoNothing , λ where
+                    aDoNothing → hasWon (m≤n⇒m∸n≡0 {health} {size1 + size2} (≤-trans big1 (m≤m+n size1 size2))))
+
+-- TODO: Figure out some abstractions to make it less tedious
 
 -- TODO: Handle priority
 -- But do not need stack
@@ -707,5 +716,51 @@ big-walker-game-wins s@record
 
 -- Goal: Prove isDraw or losingGame or winningGame for both initial games
 -- Method: Find an invariant that holds that can be used to prove that any game with this invariant will be a win/loss for some player
+
+mapPlayer : ∀ p → GameState → (PlayerState p → PlayerState p) → GameState
+mapPlayer ozzie s f = record s { ozzieState = f (GameState.ozzieState s) }
+mapPlayer brigyeetz s f = record s { brigyeetzState = f (GameState.brigyeetzState s) }
+
+more-opponent-health-is-bad-b : ∀ (s : GameState) → losingGame brigyeetz s → losingGame brigyeetz (mapPlayer ozzie s λ sp → record sp { healthTotal = suc (healthTotal sp)})
+more-opponent-health-is-bad-o : ∀ (s : GameState) → losingGame ozzie s → losingGame ozzie (mapPlayer brigyeetz s λ sp → record sp { healthTotal = suc (healthTotal sp)})
+more-opponent-health-is-bad-b = {!   !}
+more-opponent-health-is-bad-o = {!   !}
+more-health-is-good-b : ∀ (s : GameState) → winningGame brigyeetz s → winningGame brigyeetz (mapPlayer brigyeetz s λ sp → record sp { healthTotal = suc (healthTotal sp)})
+more-health-is-good-b s (hasWon x) = hasWon x
+more-health-is-good-b s (willWin isAliv (aCastWalker1 isActive inMain hasMana isInHand                , snd)) = willWin tt (aCastWalker1 isActive inMain hasMana isInHand                   , more-opponent-health-is-bad-o _ snd)
+more-health-is-good-b s (willWin isAliv (aCastWalker2 isActive inMain hasMana isInHand                , snd)) = willWin tt (aCastWalker2 isActive inMain hasMana isInHand                   , more-opponent-health-is-bad-o _ snd)
+more-health-is-good-b s (willWin isAliv (aActivateWalker1 hasMana@(_ , yes pf) canActivate            , snd)) = willWin tt (aActivateWalker1 hasMana canActivate                            , more-opponent-health-is-bad-o _ snd)
+more-health-is-good-b s (willWin isAliv (aActivateWalker1 hasMana@(_ , no ¬pf) canActivate            , snd)) = willWin tt (aActivateWalker1 hasMana canActivate                            , {! more-opponent-health-is-bad-o _ snd  !})
+more-health-is-good-b s (willWin isAliv (aActivateWalker2 hasMana canActivate                         , snd)) = willWin tt (aActivateWalker2 hasMana canActivate                            , {! more-opponent-health-is-bad-o _ snd  !})
+more-health-is-good-b s (willWin isAliv (aDeclareAttackers inCombat isActive atcks validAtcks         , snd)) = willWin tt (aDeclareAttackers inCombat isActive atcks {!   !}            , {! more-opponent-health-is-bad-o _ snd  !})
+more-health-is-good-b s (willWin isAliv (aDeclareBlockers atcks inCombat2 isOpponent blcks validBlcks , snd)) = willWin tt ({! aDeclareBlockers atcks inCombat2 isOpponent blcks validBlcks!}    , {! more-opponent-health-is-bad-o _ snd  !})
+more-health-is-good-b s (willWin isAliv (aDoNothing                                                   , snd)) = willWin tt (aDoNothing                                                      , {! more-opponent-health-is-bad-o _ snd  !})
+more-health-is-good : ∀ p (s : GameState) → winningGame p s → winningGame p (mapPlayer p s λ sp → record sp { healthTotal = suc (healthTotal sp)})
+more-health-is-good ozzie s (hasWon x) = hasWon x
+more-health-is-good brigyeetz s (hasWon x) = hasWon x
+more-health-is-good brigyeetz s (willWin isAliv (aCastWalker1 isActive inMain hasMana isInHand                , snd)) = willWin tt (aCastWalker1 isActive inMain hasMana isInHand                   , {! more-health-is-good brigyeetz ? ? !})
+more-health-is-good brigyeetz s (willWin isAliv (aCastWalker2 isActive inMain hasMana isInHand                , snd)) = willWin tt (aCastWalker2 isActive inMain hasMana isInHand                   , {!   !})
+more-health-is-good brigyeetz s (willWin isAliv (aActivateWalker1 hasMana canActivate                         , snd)) = willWin tt (aActivateWalker1 {!   !} canActivate                            , {!   !})
+more-health-is-good brigyeetz s (willWin isAliv (aActivateWalker2 hasMana canActivate                         , snd)) = willWin tt (aActivateWalker2 {!   !} canActivate                            , {!   !})
+more-health-is-good brigyeetz s (willWin isAliv (aDeclareAttackers inCombat isActive atcks validAtcks         , snd)) = willWin tt (aDeclareAttackers inCombat isActive atcks {!   !}            , {!   !})
+more-health-is-good brigyeetz s (willWin isAliv (aDeclareBlockers atcks inCombat2 isOpponent blcks validBlcks , snd)) = willWin tt ({! aDeclareBlockers atcks inCombat2 isOpponent blcks validBlcks!}    , {!   !})
+more-health-is-good brigyeetz s (willWin isAliv (aDoNothing                                                   , snd)) = willWin tt (aDoNothing                                                      , {!   !})
+more-health-is-good ozzie     s (willWin isAliv (aCastWalker1 isActive inMain hasMana isInHand                , snd)) = willWin tt (aCastWalker1 isActive inMain hasMana isInHand                   , {!   !})
+more-health-is-good ozzie     s (willWin isAliv (aCastElixir isActive inMain hasMana isInHand                 , snd)) = willWin tt (aCastElixir isActive inMain {!   !} isInHand                    , {!   !})
+more-health-is-good ozzie     s (willWin isAliv (aActivateWalker1 hasMana canActivate                         , snd)) = willWin tt (aActivateWalker1 {!   !} canActivate                            , {!   !})
+more-health-is-good ozzie     s (willWin isAliv (aActivateElixir hasMana canActivate                          , snd)) = willWin tt (aActivateElixir hasMana canActivate                             , {!   !})
+more-health-is-good ozzie     s (willWin isAliv (aDeclareAttackers inCombat isActive atcks validAtcks         , snd)) = willWin tt ({! aDeclareAttackers inCombat isActive atcks validAtcks!}            , {!   !})
+more-health-is-good ozzie     s (willWin isAliv (aDeclareBlockers atcks inCombat2 isOpponent blcks validBlcks , snd)) = willWin tt ({! aDeclareBlockers atcks inCombat2 isOpponent blcks validBlcks!}    , {!   !})
+more-health-is-good ozzie     s (willWin isAliv (aDoNothing                                                   , snd)) = willWin tt ({! aDoNothing!}                                                      , {!   !})
+-- more-health-is-good ozzie      s (willWin isAliv (aCastWalker1 x x₁ hasMana isInHand , snd)) = willWin tt {!   !}
+-- more-health-is-good brigyeetz  s (willWin isAliv (aCastWalker1 x x₁ hasMana isInHand , snd)) = willWin tt {!   !}
+-- more-health-is-good .brigyeetz s (willWin isAliv (aCastWalker2 x x₁ hasMana isInHand , snd)) = {!   !}
+-- more-health-is-good .ozzie     s (willWin isAliv (aCastElixir x x₁ hasMana isInHand , snd)) = {!   !}
+-- more-health-is-good p          s (willWin isAliv (aActivateWalker1 hasMana canActivate , snd)) = {!   !}
+-- more-health-is-good .brigyeetz s (willWin isAliv (aActivateWalker2 hasMana canActivate , snd)) = {!   !}
+-- more-health-is-good .ozzie     s (willWin isAliv (aActivateElixir hasMana canActivate , snd)) = {!   !}
+-- more-health-is-good p          s (willWin isAliv (aDeclareAttackers x x₁ atcks x₂ , snd)) = {!   !}
+-- more-health-is-good p          s (willWin isAliv (aDeclareBlockers atcks x x₁ blcks x₂ , snd)) = {!   !}
+-- more-health-is-good p          s (willWin isAliv (aDoNothing , snd)) = {!   !}
 
 -- -}
