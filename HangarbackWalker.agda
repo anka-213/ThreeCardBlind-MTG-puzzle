@@ -99,7 +99,7 @@ record PlayerState (p : Player) : Set where
         healthTotal : ℕ
         floatingMana : ℕ
         thopters : ThopterState
-        isCityTapped : Bool
+        isCityUntapped : Bool
         walker1State : CardPosition walker
         card2State : CardPosition (card2ForPlayer p)
         deck : List Card
@@ -228,7 +228,7 @@ ozzieStart = record
     { healthTotal = 20
     ; floatingMana = 0
     ; thopters = noThopters
-    ; isCityTapped = false
+    ; isCityUntapped = true
     ; walker1State = inHand
     ; card2State = inHand
     ; deck = []
@@ -239,7 +239,7 @@ brigyeetzStart = record
     { healthTotal = 20
     ; floatingMana = 0
     ; thopters = noThopters
-    ; isCityTapped = false
+    ; isCityUntapped = true
     ; walker1State = inHand
     ; card2State = inHand
     ; deck = []
@@ -298,34 +298,34 @@ drawCard s = withPlayer s (GameState.activePlayer s) drawCardForPlayer
 -- We do not allow more than one mana source, since only one exists in this matchup
 module _ {p : Player} (s : PlayerState p) where
     manaAvailable : ℕ
-    manaAvailable = if isCityTapped s then floatingMana s else 2
+    manaAvailable = if isCityUntapped s then 2 else floatingMana s
     -- record HasMana (n : ℕ) : Set where
     --     constructor yesMana
     --     field
     --         manaIneq : manaAvailable ≥ n
     data ManaMethod : ℕ → Set where
-        untappedLand : (pf : isCityTapped s ≡ false) → ManaMethod 2
+        untappedLand : (pf : isCityUntapped s ≡ true) → ManaMethod 2
         usingFloatingMana : (hasMana : floatingMana s ≡ 1) → ManaMethod 1
-        ignoreMana : (pf : isCityTapped s ≡ false) → ManaMethod 1
+        ignoreMana : (pf : isCityUntapped s ≡ true) → ManaMethod 1
 
     HasMana : ℕ → Set
-    HasMana 1 = (if isCityTapped s then floatingMana s ≡ 1 else ⊤) × (Dec (isCityTapped s ≡ false))
-    HasMana 2 = isCityTapped s ≡ false
+    HasMana 1 = (if isCityUntapped s then ⊤ else floatingMana s ≡ 1) × (Dec (isCityUntapped s ≡ true))
+    HasMana 2 = isCityUntapped s ≡ true
     HasMana _ = ⊥
 
     consumeManaUsing : ∀ n → ManaMethod n → PlayerState p
-    consumeManaUsing .2 (untappedLand pf) = record s { isCityTapped = true }
+    consumeManaUsing .2 (untappedLand pf) = record s { isCityUntapped = false }
     consumeManaUsing .1 (usingFloatingMana hasMana) = record s { floatingMana = 0 }
-    consumeManaUsing .1 (ignoreMana pf) = record s { isCityTapped = true ; floatingMana = 1 }
+    consumeManaUsing .1 (ignoreMana pf) = record s { isCityUntapped = false ; floatingMana = 1 }
 
     consumeMana : ∀ n → HasMana n → PlayerState p
     consumeMana 1 (h , yes pf) = consumeManaUsing 1 (ignoreMana pf)
     consumeMana 1 (h , (no ¬pf)) = consumeManaUsing 1 {!   !}
     consumeMana 2 h = consumeManaUsing 2 (untappedLand h)
 
-    -- consumeMana .2 (untappedLand pf) = record s { isCityTapped = true }
+    -- consumeMana .2 (untappedLand pf) = record s { isCityUntapped = false }
     -- consumeMana .1 (usingFloatingMana hasMana) = record s { floatingMana = 0 }
-    -- consumeMana .1 (ignoreMana pf) = record s { isCityTapped = true ; floatingMana = 1 }
+    -- consumeMana .1 (ignoreMana pf) = record s { isCityUntapped = false ; floatingMana = 1 }
 
 module _ (s : GameState) where
     open GameState s
@@ -333,9 +333,8 @@ module _ (s : GameState) where
     withPlayerCost p n hasMana f = setPlayerState s p (f (consumeMana (stateOfPlayer p) n hasMana))
 
 
--- (pf : isCityTapped (activePlayerState s) ≡ false)
 tapLand : ∀ {p} → PlayerState p → PlayerState p
-tapLand s = record s { isCityTapped = true ; floatingMana = 2 }
+tapLand s = record s { isCityUntapped = false ; floatingMana = 2 }
 
 castWalker1 : ∀ {p} → PlayerState p → PlayerState p
 castWalker1 s = record s { floatingMana = 0 ; walker1State = onBattlefield walkerInitialState }
@@ -448,7 +447,7 @@ untapPlayer s = record s
         }
     ; walker1State = mapCard untapCard (walker1State s)
     ; card2State = mapCard untapCard (card2State s)
-    ; isCityTapped = false
+    ; isCityUntapped = true
     }
 
 untapActivePlayer : GameState → GameState
@@ -556,53 +555,53 @@ ex1 : gameExample (initialGameState ozzie) {!   !}
 ex1 = begin
     initialGameState ozzie ⟶⟨ doAction ozzie (aCastWalker1 refl main1 refl refl) ⟩
     game preCombatMain ozzie (record ozzieStart
-        { isCityTapped = true
+        { isCityUntapped = false
         ; walker1State = onBattlefield walkerInitialState
         }) brigyeetzStart false ⟶⟨ doAction ozzie (aDoNothing) ⟩
     _ ⟶⟨ doAction brigyeetz aDoNothing ⟩
     game (combat CombatStart) ozzie (record ozzieStart
-        { isCityTapped = true
+        { isCityUntapped = false
         ; walker1State = onBattlefield walkerInitialState
         }) brigyeetzStart false ⟶⟨ doAction ozzie aDoNothing ⟩
   game (combat CombatStart) ozzie (record ozzieStart
-        { isCityTapped = true
+        { isCityUntapped = false
         ; walker1State = onBattlefield walkerInitialState
         }) brigyeetzStart true ⟶⟨ doAction brigyeetz aDoNothing ⟩
-  game postCombatMain ozzie (record ozzieStart { isCityTapped = true ; walker1State = onBattlefield walkerInitialState
+  game postCombatMain ozzie (record ozzieStart { isCityUntapped = false ; walker1State = onBattlefield walkerInitialState
         }) brigyeetzStart false ⟶⟨ doAction ozzie aDoNothing ⟩
-  game postCombatMain ozzie (record ozzieStart { isCityTapped = true ; walker1State = onBattlefield walkerInitialState
+  game postCombatMain ozzie (record ozzieStart { isCityUntapped = false ; walker1State = onBattlefield walkerInitialState
         }) brigyeetzStart true ⟶⟨ doAction brigyeetz aDoNothing ⟩
-  game preCombatMain brigyeetz (record ozzieStart { isCityTapped = true ; walker1State = onBattlefield walkerInitialState
+  game preCombatMain brigyeetz (record ozzieStart { isCityUntapped = false ; walker1State = onBattlefield walkerInitialState
         }) brigyeetzStart false ⟶⟨ doAction brigyeetz (aCastWalker2 refl main1 (refl) refl) ⟩
-  game preCombatMain brigyeetz (record ozzieStart { isCityTapped = true ; walker1State = onBattlefield walkerInitialState
-        }) (record brigyeetzStart {isCityTapped = true ; card2State = onBattlefield walkerInitialState}) false ⟶⟨ doAction brigyeetz aDoNothing ⟩
-  game preCombatMain brigyeetz (record ozzieStart { isCityTapped = true ; walker1State = onBattlefield walkerInitialState
-        }) (record brigyeetzStart {isCityTapped = true ; card2State = onBattlefield walkerInitialState}) true ⟶⟨ doAction ozzie aDoNothing ⟩
-  game (combat CombatStart) brigyeetz (record ozzieStart { isCityTapped = true ; walker1State = onBattlefield walkerInitialState
-        }) (record brigyeetzStart {isCityTapped = true ; card2State = onBattlefield walkerInitialState}) false ⟶⟨ doAction brigyeetz aDoNothing ⟩
-  game (combat CombatStart) brigyeetz (record ozzieStart { isCityTapped = true ; walker1State = onBattlefield walkerInitialState
-        }) (record brigyeetzStart {isCityTapped = true ; card2State = onBattlefield walkerInitialState}) true ⟶⟨ doAction ozzie aDoNothing ⟩
-  game postCombatMain brigyeetz (record ozzieStart { isCityTapped = true ; walker1State = onBattlefield walkerInitialState
-        }) (record brigyeetzStart {isCityTapped = true ; card2State = onBattlefield walkerInitialState}) false ⟶⟨ doAction brigyeetz aDoNothing ⟩
-  game postCombatMain brigyeetz (record ozzieStart { isCityTapped = true ; walker1State = onBattlefield walkerInitialState
-        }) (record brigyeetzStart {isCityTapped = true ; card2State = onBattlefield walkerInitialState}) true ⟶⟨ doAction ozzie aDoNothing ⟩
+  game preCombatMain brigyeetz (record ozzieStart { isCityUntapped = false ; walker1State = onBattlefield walkerInitialState
+        }) (record brigyeetzStart {isCityUntapped = false ; card2State = onBattlefield walkerInitialState}) false ⟶⟨ doAction brigyeetz aDoNothing ⟩
+  game preCombatMain brigyeetz (record ozzieStart { isCityUntapped = false ; walker1State = onBattlefield walkerInitialState
+        }) (record brigyeetzStart {isCityUntapped = false ; card2State = onBattlefield walkerInitialState}) true ⟶⟨ doAction ozzie aDoNothing ⟩
+  game (combat CombatStart) brigyeetz (record ozzieStart { isCityUntapped = false ; walker1State = onBattlefield walkerInitialState
+        }) (record brigyeetzStart {isCityUntapped = false ; card2State = onBattlefield walkerInitialState}) false ⟶⟨ doAction brigyeetz aDoNothing ⟩
+  game (combat CombatStart) brigyeetz (record ozzieStart { isCityUntapped = false ; walker1State = onBattlefield walkerInitialState
+        }) (record brigyeetzStart {isCityUntapped = false ; card2State = onBattlefield walkerInitialState}) true ⟶⟨ doAction ozzie aDoNothing ⟩
+  game postCombatMain brigyeetz (record ozzieStart { isCityUntapped = false ; walker1State = onBattlefield walkerInitialState
+        }) (record brigyeetzStart {isCityUntapped = false ; card2State = onBattlefield walkerInitialState}) false ⟶⟨ doAction brigyeetz aDoNothing ⟩
+  game postCombatMain brigyeetz (record ozzieStart { isCityUntapped = false ; walker1State = onBattlefield walkerInitialState
+        }) (record brigyeetzStart {isCityUntapped = false ; card2State = onBattlefield walkerInitialState}) true ⟶⟨ doAction ozzie aDoNothing ⟩
   game preCombatMain ozzie (record ozzieStart { walker1State = onBattlefield (record { isTapped = false ; summoningSickness = false ; nCounters = 1 }) })
-        (record brigyeetzStart { isCityTapped = true ; card2State = onBattlefield walkerInitialState }) false ⟶⟨ doAction ozzie aDoNothing ⟩
+        (record brigyeetzStart { isCityUntapped = false ; card2State = onBattlefield walkerInitialState }) false ⟶⟨ doAction ozzie aDoNothing ⟩
   game preCombatMain ozzie (record ozzieStart { walker1State = onBattlefield (record { isTapped = false ; summoningSickness = false ; nCounters = 1 }) })
-        (record brigyeetzStart { isCityTapped = true ; card2State = onBattlefield walkerInitialState }) true ⟶⟨ doAction brigyeetz aDoNothing ⟩
+        (record brigyeetzStart { isCityUntapped = false ; card2State = onBattlefield walkerInitialState }) true ⟶⟨ doAction brigyeetz aDoNothing ⟩
   game (combat CombatStart) ozzie (record ozzieStart { walker1State = onBattlefield (record { isTapped = false ; summoningSickness = false ; nCounters = 1 }) })
-        (record brigyeetzStart { isCityTapped = true ; card2State = onBattlefield walkerInitialState }) false
+        (record brigyeetzStart { isCityUntapped = false ; card2State = onBattlefield walkerInitialState }) false
         ⟶⟨ doAction ozzie (aDeclareAttackers refl refl (myAttackers) (record { thoptersValid = z≤n ; walker1Valid = valid 1 ; walker2Valid = tt })) ⟩
   game (combat (DeclaredAttackers myAttackers)) ozzie (record ozzieStart { walker1State = onBattlefield (record { isTapped = true ; summoningSickness = false ; nCounters = 1 }) })
-        (record brigyeetzStart { isCityTapped = true ; card2State = onBattlefield walkerInitialState }) false ⟶⟨ doAction ozzie aDoNothing ⟩
+        (record brigyeetzStart { isCityUntapped = false ; card2State = onBattlefield walkerInitialState }) false ⟶⟨ doAction ozzie aDoNothing ⟩
   game (combat (DeclaredAttackers myAttackers)) ozzie (record ozzieStart { walker1State = onBattlefield (record { isTapped = true ; summoningSickness = false ; nCounters = 1 }) })
-        (record brigyeetzStart { isCityTapped = true ; card2State = onBattlefield walkerInitialState }) true ⟶⟨ doAction brigyeetz aDoNothing ⟩
+        (record brigyeetzStart { isCityUntapped = false ; card2State = onBattlefield walkerInitialState }) true ⟶⟨ doAction brigyeetz aDoNothing ⟩
   game (combat (DeclaredBlockers myAttackers (noBlockers myAttackers))) ozzie (record ozzieStart { walker1State = onBattlefield (record { isTapped = true ; summoningSickness = false ; nCounters = 1 }) })
-        (record brigyeetzStart { isCityTapped = true ; card2State = onBattlefield walkerInitialState }) false ⟶⟨ doAction ozzie aDoNothing ⟩
+        (record brigyeetzStart { isCityUntapped = false ; card2State = onBattlefield walkerInitialState }) false ⟶⟨ doAction ozzie aDoNothing ⟩
   game (combat (DeclaredBlockers myAttackers (noBlockers myAttackers))) ozzie (record ozzieStart { walker1State = onBattlefield (record { isTapped = true ; summoningSickness = false ; nCounters = 1 }) })
-        (record brigyeetzStart { isCityTapped = true ; card2State = onBattlefield walkerInitialState }) true ⟶⟨ doAction brigyeetz aDoNothing ⟩
+        (record brigyeetzStart { isCityUntapped = false ; card2State = onBattlefield walkerInitialState }) true ⟶⟨ doAction brigyeetz aDoNothing ⟩
   game postCombatMain ozzie (record ozzieStart { walker1State = onBattlefield (record { isTapped = true ; summoningSickness = false ; nCounters = 1 }) })
-        (record brigyeetzStart { healthTotal = 19; isCityTapped = true ; card2State = onBattlefield walkerInitialState }) false ⟶⟨ doAction brigyeetz aDoNothing ⟩
+        (record brigyeetzStart { healthTotal = 19; isCityUntapped = false ; card2State = onBattlefield walkerInitialState }) false ⟶⟨ doAction brigyeetz aDoNothing ⟩
 --   {!   !} ⟶⟨ {!   !} ⟩
 --   {!   !} ⟶⟨ {!   !} ⟩
     {!   !} ∎
@@ -679,7 +678,7 @@ HasBigWalkers : GameState → Set
 HasBigWalkers s@record
     { phase = combat CombatStart
     ; activePlayer = brigyeetz
-    ; ozzieState = record { healthTotal = health ; thopters = noThopters ; isCityTapped = true}
+    ; ozzieState = record { healthTotal = health ; thopters = noThopters ; isCityUntapped = false}
     ; brigyeetzState = record
         { healthTotal = suc _
         ; walker1State = onBattlefield record { isTapped = false ; summoningSickness = false ; nCounters = size1 }
@@ -693,7 +692,7 @@ big-walker-game-wins : ∀ s → HasBigWalkers s → winningGame brigyeetz s
 big-walker-game-wins s@record
     { phase = combat CombatStart
     ; activePlayer = brigyeetz
-    ; ozzieState = record { healthTotal = health ; thopters = noThopters ; isCityTapped = true }
+    ; ozzieState = record { healthTotal = health ; thopters = noThopters ; isCityUntapped = false }
     ; brigyeetzState = record
         { healthTotal = suc _
         ; walker1State = onBattlefield record { isTapped = false ; summoningSickness = false ; nCounters = size1 }
