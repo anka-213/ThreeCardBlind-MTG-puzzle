@@ -360,7 +360,6 @@ data isMain : Phase → Set where
     main1 : isMain preCombatMain
     main2 : isMain postCombatMain
 
--- todo: helper to subtract and demand mana
 -- todo: generic helpers for card types and costs
 
 -- TODO: prevent actions in between declare blockers and assign order
@@ -442,14 +441,14 @@ walkerSize {elixir} s = 0
 
 reduceHealthTotal : ∀ {p} → ℕ → PlayerState p → PlayerState p
 reduceHealthTotal n s = record s { healthTotal = healthTotal s ∸ n }
-takeDamage : ∀ {p} (a : AttackerInfo) → PlayerState p → PlayerState (opponentOf p) → PlayerState (opponentOf p)
-takeDamage record { thopters = n ; walker1Attack = false ; walker2Attack = false } pl s = reduceHealthTotal n s
-takeDamage record { thopters = n ; walker1Attack = false ; walker2Attack = true } pl s = reduceHealthTotal (n + walkerSize (card2State pl)) s
-takeDamage record { thopters = n ; walker1Attack = true ; walker2Attack = false } pl s = reduceHealthTotal (n + walkerSize (walker1State pl )) s
-takeDamage record { thopters = n ; walker1Attack = true ; walker2Attack = true } pl s = reduceHealthTotal (n + walkerSize (walker1State pl) + walkerSize (card2State pl)) s
+takeDamage : ∀ {p} (a : AttackerInfo) → BlockerInfo a → PlayerState p → PlayerState (opponentOf p) → PlayerState (opponentOf p)
+takeDamage a b attacker defender = reduceHealthTotal (AttackerInfo.thopters a
+    + (if AttackerInfo.walker1Attack a then walkerSize (walker1State attacker) else 0)
+    + (if AttackerInfo.walker2Attack a then walkerSize (card2State attacker) else 0)
+    ) defender
 
 resolveCombat : ∀ a → (b : BlockerInfo a) → (s : GameState) → (GameState.phase s ≡ combat (DeclaredBlockers a b)) → GameState
-resolveCombat a b s r = withPlayer s opponent (takeDamage a (activePlayerState))
+resolveCombat a b s r = withPlayer s opponent (takeDamage a b (activePlayerState))
   where open GameState s
 -- TODO: Handle blockers
 -- TODO: Allow choosing order of attacking blockers
