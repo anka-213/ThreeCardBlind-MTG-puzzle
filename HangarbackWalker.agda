@@ -2,6 +2,7 @@
 open import Relation.Binary.PropositionalEquality
 open import Function
 open import Data.Nat
+open import Data.Nat.Properties
 open import Data.Fin using (Fin ; #_)
 open import Data.Unit.Base hiding (_≤_)
 open import Data.Empty
@@ -92,6 +93,7 @@ card2ForPlayer ozzie = elixir
 card2ForPlayer brigyeetz = walker
 
 record PlayerState (p : Player) : Set where
+    pattern
     field
         healthTotal : ℕ
         floatingMana : ℕ
@@ -172,6 +174,7 @@ data Phase : Set where
 
 
 record GameState : Set where
+    pattern
     constructor game
     field
         phase : Phase
@@ -377,7 +380,7 @@ record AttackersValid (s : GameState) (a : AttackerInfo) : Set where
         walker1Valid : if AttackerInfo.walker1Attack a then canActivateWalker (walker1State (GameState.activePlayerState s)) else ⊤
         walker2Valid : if AttackerInfo.walker2Attack a then Σ[ pf ∈ GameState.activePlayer s ≡ brigyeetz ] canActivateWalker2 pf (card2State (GameState.activePlayerState s)) else ⊤
 
-record BlockerssValid (s : GameState) (a : AttackerInfo) (b : BlockerInfo a) : Set where
+record BlockersValid (s : GameState) (a : AttackerInfo) (b : BlockerInfo a) : Set where
     field
         walker1Valid : if isBlocking (BlockerInfo.walker1Block b) then canActivateWalker (walker1State (GameState.opponentState s)) else ⊤
     -- TODO implement this
@@ -484,7 +487,7 @@ module _ (s : GameState) where
         aActivateWalker2 : ∀ (hasMana : HasMana brigyeetzState 1) → (canActivate : canActivateWalker (card2State brigyeetzState)) → Action brigyeetz
         aActivateElixir : (hasMana : HasMana ozzieState 2) → (canActivate : card2State ozzieState ≡ onBattlefield elixirState) → Action ozzie
         aDeclareAttackers : ∀ {p} → phase ≡ combat CombatStart → p ≡ activePlayer → (atcks : AttackerInfo) → (AttackersValid s atcks) → Action p
-        aDeclareBlockers : ∀ {p} (atcks : AttackerInfo) → phase ≡ combat (DeclaredAttackers atcks) → p ≡ opponent → (blcks : BlockerInfo atcks) → (AttackersValid s atcks) → Action p
+        aDeclareBlockers : ∀ {p} (atcks : AttackerInfo) → phase ≡ combat (DeclaredAttackers atcks) → p ≡ opponent → (blcks : BlockerInfo atcks) → (BlockersValid s atcks blcks) → Action p
         aDoNothing : ∀ {p} → Action p
 
     performAction : ∀ p → Action p → GameState
@@ -495,7 +498,7 @@ module _ (s : GameState) where
     performAction p (aActivateWalker2 hasMana canActivate) = setPlayerState s brigyeetz (activateWalker2 brigyeetzState hasMana canActivate)
     performAction p (aActivateElixir hasMana canActivate) = withPlayerCost s ozzie 2 hasMana activateElixir
     performAction p (aDeclareAttackers phs curPl atcks atcksValid) = withPlayer (changePhase (combat (DeclaredAttackers atcks)) s) activePlayer (tapAttackers atcks) -- record s { phase =  ; lastPlayerPassed = false}
-    performAction p (aDeclareBlockers atcks phs curPl blcks atcksValid) = changePhase (combat (DeclaredBlockers atcks blcks)) s
+    performAction p (aDeclareBlockers atcks phs curPl blcks blcksValid) = changePhase (combat (DeclaredBlockers atcks blcks)) s
     performAction p (aDoNothing) = doNothing p s
     -- _⇒_ : GameState → Set
     -- _⇒_ = Action
@@ -609,6 +612,64 @@ ozzieWins = willWin tt (aCastWalker1 refl main1 (untappedLand refl) refl , λ wh
         (aCastWalker2 x x₁ hasMana isInHand) → {!   !}
         aDoNothing → {!   !}))))
 
+-- game-with-big-walkers : GameState
+-- game-with-big-walkers = game (combat CombatStart) brigyeetz
+--     (record
+--      { healthTotal = {!   !}
+--      ; floatingMana = {!   !}
+--      ; thopters = {!   !}
+--      ; isCityTapped = {!   !}
+--      ; walker1State = {!   !}
+--      ; card2State = {!   !}
+--      ; deck = {!   !}
+--      })
+--     (record
+--      { healthTotal = {!   !}
+--      ; floatingMana = {!   !}
+--      ; thopters = {!   !}
+--      ; isCityTapped = {!   !}
+--      ; walker1State = {!   !}
+--      ; card2State = {!   !}
+--      ; deck = {!   !}
+--      })
+--     {!   !} {!   !}
+HasBigWalkers : GameState → Set
+HasBigWalkers s@record
+    { phase = combat CombatStart
+    ; activePlayer = brigyeetz
+    ; ozzieState = record { healthTotal = health ; thopters = noThopters ; isCityTapped = true}
+    ; brigyeetzState = record
+        { healthTotal = suc _
+        ; walker1State = onBattlefield record { isTapped = false ; summoningSickness = false ; nCounters = size1 }
+        ; card2State = onBattlefield record { isTapped = false ; summoningSickness = false ; nCounters = size2 }
+        }
+    ; lastPlayerPassed = _
+    } = (health ≤ size1) × (health ≤ size2)
+HasBigWalkers _ = ⊥
+
+big-walker-game-wins : ∀ s → HasBigWalkers s → winningGame brigyeetz s
+big-walker-game-wins s@record
+    { phase = combat CombatStart
+    ; activePlayer = brigyeetz
+    ; ozzieState = record { healthTotal = health ; thopters = noThopters ; isCityTapped = true }
+    ; brigyeetzState = record
+        { healthTotal = suc _
+        ; walker1State = onBattlefield record { isTapped = false ; summoningSickness = false ; nCounters = size1 }
+        ; card2State = onBattlefield record { isTapped = false ; summoningSickness = false ; nCounters = size2 }
+        }
+    } (big1 , big2) = willWin tt
+        ((aDeclareAttackers refl refl (record { thopters = 0 ; walker1Attack = true ; walker2Attack = true })
+        (record { thoptersValid = z≤n ; walker1Valid = valid size1 ; walker2Valid = refl , valid size2 })) , λ where
+            (aActivateWalker1 (ignoreMana (untappedLand ())) canActivate)
+            (aActivateElixir (untappedLand ()) canActivate)
+            (aDeclareBlockers atcks isCombat isOzzie blcks blcksValid) → {!   !}
+            aDoNothing → willWin tt (aDoNothing , (λ where
+                (aActivateWalker1 (ignoreMana (untappedLand ())) canActivate)
+                (aActivateElixir (untappedLand ()) canActivate)
+                aDoNothing → willWin tt (aDoNothing , λ where
+                    (aActivateWalker1 (ignoreMana (untappedLand ())) canActivate)
+                    (aActivateElixir (hasMana) canActivate) → {! hasMana !}
+                    aDoNothing → hasWon (m≤n⇒m∸n≡0 {health} {size1 + size2} (≤-trans big1 (m≤m+n size1 size2)))))))
 
 -- TODO: Handle priority
 -- But do not need stack
