@@ -98,7 +98,7 @@ record PlayerState (p : Player) : Set where
         isCityTapped : Bool
         walker1State : CardPosition walker
         card2State : CardPosition (card2ForPlayer p)
-        -- deck : List Card
+        deck : List Card
         -- graveyard : List Card
         -- board : PossibleBoard p
     open ThopterState thopters public
@@ -193,6 +193,7 @@ ozzieStart = record
     ; isCityTapped = false
     ; walker1State = inHand
     ; card2State = inHand
+    ; deck = []
     }
 
 brigyeetzStart : PlayerState brigyeetz
@@ -203,6 +204,7 @@ brigyeetzStart = record
     ; isCityTapped = false
     ; walker1State = inHand
     ; card2State = inHand
+    ; deck = []
     }
 
 initialGameState : Player → GameState
@@ -239,8 +241,15 @@ removeCard c (x ∷ l) (there pf) = x ∷ removeCard c l pf
 
 -- Deck order being decided on draw is not valid
 
-drawCard : ∀ s → GameState
-drawCard s = record s { phase = preCombatMain } -- TODO: Actually draw cards
+-- We ignore invalid states here
+drawCardForPlayer : ∀ {p} → PlayerState p → PlayerState p
+drawCardForPlayer s@record {deck = []} = s
+drawCardForPlayer s@record {deck = (walker ∷ xs)} = record s {walker1State = inHand ; deck = xs}
+drawCardForPlayer s@record {deck = (elixir ∷ xs)} = record s {card2State = inHand ; deck = xs}
+
+
+drawCard : GameState → GameState
+drawCard s = withPlayer s (GameState.activePlayer s) drawCardForPlayer
 
 -- end turn = remove mana, flip players, remove summoning sickness, untap, draw
 -- end phase = remove mana, remove damage
@@ -298,7 +307,7 @@ activateWalker2 : ∀ (s : PlayerState brigyeetz) (hasMana : HasMana s 1) (canAc
 activateWalker2 s hasMana ca = record (consumeMana s 1 hasMana) { card2State = activateWalker (card2State s) ca}
 
 activateElixir : ∀ (s : PlayerState ozzie) → PlayerState ozzie
-activateElixir s = record s { healthTotal = 5 + healthTotal s ; floatingMana = floatingMana s ∸ 1 ; walker1State = graveyard2deck (walker1State s) ; card2State = inDeck} -- TODO: handle deck order
+activateElixir s = record s { healthTotal = 5 + healthTotal s ; floatingMana = floatingMana s ∸ 1 ; walker1State = graveyard2deck (walker1State s) ; card2State = inDeck ; deck = newDeck walkerPosition}
   where
     graveyard2deck : CardPosition walker → CardPosition walker
     graveyard2deck inHand = inHand
@@ -306,6 +315,12 @@ activateElixir s = record s { healthTotal = 5 + healthTotal s ; floatingMana = f
     graveyard2deck inDeck = inDeck -- TODO: Shuffle
     graveyard2deck (onBattlefield x) = onBattlefield x
 
+    walkerPosition = graveyard2deck (walker1State s)
+
+    -- TODO: Allow opponent to select order
+    newDeck : CardPosition walker → List Card
+    newDeck inDeck = walker ∷ elixir ∷ []
+    newDeck _ = elixir ∷ []
 
 data isMain : Phase → Set where
     main1 : isMain preCombatMain
@@ -556,9 +571,9 @@ ozzieWins = willWin tt (aCastWalker1 refl main1 (untappedLand refl) refl , λ wh
   aDoNothing → willWin tt (aDoNothing , λ where
     aDoNothing → willWin tt (aDoNothing , λ where
       aDoNothing → willWin tt (aDoNothing , λ where
-        (aCastWalker1 x x₁ hasMana isInHand) → ?
-        (aCastWalker2 x x₁ hasMana isInHand) → ?
-        aDoNothing → ?))))
+        (aCastWalker1 x x₁ hasMana isInHand) → {!   !}
+        (aCastWalker2 x x₁ hasMana isInHand) → {!   !}
+        aDoNothing → {!   !}))))
 
 
 -- TODO: Handle priority
