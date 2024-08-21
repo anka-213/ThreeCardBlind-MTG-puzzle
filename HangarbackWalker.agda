@@ -97,9 +97,10 @@ record PlayerState (p : Player) : Set where
     pattern
     field
         healthTotal : ℕ
-        floatingMana : ℕ
+        floatingMana : Bool
         thopters : ThopterState
         isCityUntapped : Bool
+        -- validMana : T not (floatingMana ∧ isCityUntapped)
         walker1State : CardPosition walker
         card2State : CardPosition (card2ForPlayer p)
         deck : List Card
@@ -226,7 +227,7 @@ noThopters = record
 ozzieStart : PlayerState ozzie
 ozzieStart = record
     { healthTotal = 20
-    ; floatingMana = 0
+    ; floatingMana = false
     ; thopters = noThopters
     ; isCityUntapped = true
     ; walker1State = inHand
@@ -237,7 +238,7 @@ ozzieStart = record
 brigyeetzStart : PlayerState brigyeetz
 brigyeetzStart = record
     { healthTotal = 20
-    ; floatingMana = 0
+    ; floatingMana = false
     ; thopters = noThopters
     ; isCityUntapped = true
     ; walker1State = inHand
@@ -297,35 +298,35 @@ drawCard s = withPlayer s (GameState.activePlayer s) drawCardForPlayer
 
 -- We do not allow more than one mana source, since only one exists in this matchup
 module _ {p : Player} (s : PlayerState p) where
-    manaAvailable : ℕ
-    manaAvailable = if isCityUntapped s then 2 else floatingMana s
+    -- manaAvailable : ℕ
+    -- manaAvailable = if isCityUntapped s then 2 else floatingMana s
     -- record HasMana (n : ℕ) : Set where
     --     constructor yesMana
     --     field
     --         manaIneq : manaAvailable ≥ n
     data ManaMethod : ℕ → Set where
         untappedLand : (pf : isCityUntapped s ≡ true) → ManaMethod 2
-        usingFloatingMana : (hasMana : floatingMana s ≡ 1) → ManaMethod 1
+        usingFloatingMana : (hasMana : floatingMana s ≡ true) → ManaMethod 1
         ignoreMana : (pf : isCityUntapped s ≡ true) → ManaMethod 1
 
     HasMana : ℕ → Set
-    HasMana 1 = (if isCityUntapped s then ⊤ else floatingMana s ≡ 1) × (Dec (isCityUntapped s ≡ true))
+    HasMana 1 = (if isCityUntapped s then ⊤ else floatingMana s ≡ true) × (Dec (isCityUntapped s ≡ true))
     HasMana 2 = isCityUntapped s ≡ true
     HasMana _ = ⊥
 
     consumeManaUsing : ∀ n → ManaMethod n → PlayerState p
     consumeManaUsing .2 (untappedLand pf) = record s { isCityUntapped = false }
-    consumeManaUsing .1 (usingFloatingMana hasMana) = record s { floatingMana = 0 }
-    consumeManaUsing .1 (ignoreMana pf) = record s { isCityUntapped = false ; floatingMana = 1 }
+    consumeManaUsing .1 (usingFloatingMana hasMana) = record s { floatingMana = false }
+    consumeManaUsing .1 (ignoreMana pf) = record s { isCityUntapped = false ; floatingMana = true }
 
     consumeMana : ∀ n → HasMana n → PlayerState p
     consumeMana 1 (h , yes pf) = consumeManaUsing 1 (ignoreMana pf)
-    consumeMana 1 (h , (no ¬pf)) = consumeManaUsing 1 {!   !}
+    consumeMana 1 (h , (no ¬pf)) = consumeManaUsing 1 {! usingFloatingMana  !}
     consumeMana 2 h = consumeManaUsing 2 (untappedLand h)
 
     -- consumeMana .2 (untappedLand pf) = record s { isCityUntapped = false }
-    -- consumeMana .1 (usingFloatingMana hasMana) = record s { floatingMana = 0 }
-    -- consumeMana .1 (ignoreMana pf) = record s { isCityUntapped = false ; floatingMana = 1 }
+    -- consumeMana .1 (usingFloatingMana hasMana) = record s { floatingMana = false }
+    -- consumeMana .1 (ignoreMana pf) = record s { isCityUntapped = false ; floatingMana = true }
 
 module _ (s : GameState) where
     open GameState s
@@ -333,17 +334,17 @@ module _ (s : GameState) where
     withPlayerCost p n hasMana f = setPlayerState s p (f (consumeMana (stateOfPlayer p) n hasMana))
 
 
-tapLand : ∀ {p} → PlayerState p → PlayerState p
-tapLand s = record s { isCityUntapped = false ; floatingMana = 2 }
+-- tapLand : ∀ {p} → PlayerState p → PlayerState p
+-- tapLand s = record s { isCityUntapped = false ; floatingMana = 2 }
 
 castWalker1 : ∀ {p} → PlayerState p → PlayerState p
-castWalker1 s = record s { floatingMana = 0 ; walker1State = onBattlefield walkerInitialState }
+castWalker1 s = record s {  walker1State = onBattlefield walkerInitialState }
 
 castWalker2 : PlayerState brigyeetz → PlayerState brigyeetz
-castWalker2 s = record s { floatingMana = 0 ; card2State = onBattlefield walkerInitialState }
+castWalker2 s = record s { card2State = onBattlefield walkerInitialState }
 
 castElixir : PlayerState ozzie → PlayerState ozzie
-castElixir s = record s { floatingMana = floatingMana s ∸ 1 ; card2State = onBattlefield elixirState }
+castElixir s = record s { card2State = onBattlefield elixirState }
 
 data canActivateWalker : CardPosition walker → Set where
   valid : ∀ n → canActivateWalker (onBattlefield (record { isTapped = false ; summoningSickness = false ; nCounters = n}))
@@ -352,7 +353,7 @@ canActivateWalker2 : ∀ {p} → p ≡ brigyeetz → CardPosition (card2ForPlaye
 canActivateWalker2 refl s = canActivateWalker s
 
 -- activateWalker1 : ∀ {p} → canActivateWalker  →  PlayerState p → PlayerState p
--- activateWalker1 _ s = record s { floatingMana = 0 ; walker1State = onBattlefield walkerInitialState }
+-- activateWalker1 _ s = record s { floatingMana = false ; walker1State = onBattlefield walkerInitialState }
 
 activateWalker : ∀ (s : CardPosition walker) (canActivate : canActivateWalker s) → CardPosition walker
 activateWalker .(onBattlefield (record { isTapped = false ; summoningSickness = false ; nCounters = n })) (valid n) = onBattlefield record { isTapped = true ; summoningSickness = false ; nCounters = 1 + n}
@@ -364,7 +365,7 @@ activateWalker2 : ∀ (s : PlayerState brigyeetz) (hasMana : HasMana s 1) (canAc
 activateWalker2 s hasMana ca = record (consumeMana s 1 hasMana) { card2State = activateWalker (card2State s) ca}
 
 activateElixir : ∀ (s : PlayerState ozzie) → PlayerState ozzie
-activateElixir s = record s { healthTotal = 5 + healthTotal s ; floatingMana = floatingMana s ∸ 1 ; walker1State = graveyard2deck (walker1State s) ; card2State = inDeck ; deck = newDeck walkerPosition}
+activateElixir s = record s { healthTotal = 5 + healthTotal s ; walker1State = graveyard2deck (walker1State s) ; card2State = inDeck ; deck = newDeck walkerPosition}
   where
     graveyard2deck : CardPosition walker → CardPosition walker
     graveyard2deck inHand = inHand
@@ -433,7 +434,7 @@ tapAttackers a s = record s
     }
 
 clearMana : ∀ {p} → PlayerState p → PlayerState p
-clearMana s = record s { floatingMana = 0 }
+clearMana s = record s { floatingMana = false }
 
 changePhase : Phase → GameState → GameState
 changePhase ph s = record s { phase = ph ; ozzieState = clearMana (GameState.ozzieState s) ; brigyeetzState = clearMana (GameState.brigyeetzState s) ; lastPlayerPassed = false}
