@@ -153,6 +153,7 @@ blockerContextFor ps = record
 module _ (ac : AttackContext) where
     open AttackContext ac
     record AttackerInfo : Set where
+        pattern
         field
             thoptersAttack : Σ[ n ∈ ℕ ] n ≤ availableThopters
             walker1Attack : Maybe (T availableWalker1)
@@ -179,6 +180,7 @@ module _ (ac : AttackContext) where
     maybe2nat nothing = 0
 
     record BlockerInfo (a : AttackerInfo) (bc : BlockerContext) : Set where
+        pattern
         field
             thopter-thopter-blocks : Σ[ n ∈ ℕ ] n ≤ nThopters a
             thopter-block-walker1 : Maybe (Is-just (walker1Attack a))
@@ -515,22 +517,21 @@ walkerSize {elixir} s = 0
 reduceHealthTotal : ∀ {p} → ℕ → PlayerState p → PlayerState p
 reduceHealthTotal n s = record s { healthTotal = healthTotal s ∸ n }
 module _ {p} {pps : AttackContext} {bc : BlockerContext} where
-    takeDamage : ∀ (a : AttackerInfo pps) (b : BlockerInfo pps a bc) → PlayerState p → PlayerState (opponentOf p) → PlayerState (opponentOf p)
-    takeDamage a b attacker defender = reduceHealthTotal (AttackerInfo.nThopters a + damageFromWalker1 a b + damageFromWalker2 a b) defender
-        where
-        damageFromWalker1 : (a : AttackerInfo pps) → BlockerInfo pps a bc → ℕ
-        damageFromWalker1 record { walker1Attack = nothing} b = 0
-        damageFromWalker1 record { walker1Attack = just _ } record { thopter-block-walker1 = just _ } = 0
-        damageFromWalker1 record { walker1Attack = just _ } record { walker1Block = just (blockWalker1 _ , _) } = 0
-        damageFromWalker1 record { walker1Attack = just _ } record { walker2Block = just (blockWalker1 _ , _) } = 0
-        damageFromWalker1 record { walker1Attack = just _ } _ = walkerSize (walker1State attacker)
+    damageFromWalker1 : (CardPosition walker) → (a : AttackerInfo pps) → BlockerInfo pps a bc → ℕ
+    damageFromWalker1 wSt record { walker1Attack = nothing} b = 0
+    damageFromWalker1 wSt record { walker1Attack = just _ } record { thopter-block-walker1 = just _ } = 0
+    damageFromWalker1 wSt record { walker1Attack = just _ } record { walker1Block = just (blockWalker1 _ , _) } = 0
+    damageFromWalker1 wSt record { walker1Attack = just _ } record { walker2Block = just (blockWalker1 _ , _) } = 0
+    damageFromWalker1 wSt record { walker1Attack = just _ } _ = walkerSize wSt
 
-        damageFromWalker2 : (a : AttackerInfo pps) → BlockerInfo pps a bc → ℕ
-        damageFromWalker2 record { walker2Attack = nothing} b = 0
-        damageFromWalker2 record { walker2Attack = just _ } record { thopter-block-walker2 = just _ } = 0
-        damageFromWalker2 record { walker2Attack = just _ } record { walker1Block = just (blockWalker2 _ , _) } = 0
-        damageFromWalker2 record { walker2Attack = just _ } record { walker2Block = just (blockWalker2 _ , _) } = 0
-        damageFromWalker2 record { walker2Attack = just _ } _ = walkerSize (card2State attacker)
+    damageFromWalker2 : ∀ {c} → (CardPosition c) → (a : AttackerInfo pps) → BlockerInfo pps a bc → ℕ
+    damageFromWalker2 wSt record { walker2Attack = nothing} b = 0
+    damageFromWalker2 wSt record { walker2Attack = just _ } record { thopter-block-walker2 = just _ } = 0
+    damageFromWalker2 wSt record { walker2Attack = just _ } record { walker1Block = just (blockWalker2 _ , _) } = 0
+    damageFromWalker2 wSt record { walker2Attack = just _ } record { walker2Block = just (blockWalker2 _ , _) } = 0
+    damageFromWalker2 wSt record { walker2Attack = just _ } _ = walkerSize wSt
+    takeDamage : ∀ (a : AttackerInfo pps) (b : BlockerInfo pps a bc) → PlayerState p → PlayerState (opponentOf p) → PlayerState (opponentOf p)
+    takeDamage a b attacker defender = reduceHealthTotal (AttackerInfo.nThopters a + damageFromWalker1 (walker1State attacker) a b + damageFromWalker2 (card2State attacker) a b) defender
 
     -- TODO: Handle thopters
     -- TODO: Destroy smaller creatures
@@ -780,9 +781,13 @@ more-opponent-health-is-bad-o s lg (aDeclareAttackers inCombat isActive@refl atc
 more-opponent-health-is-bad-o s@record{activePlayer = brigyeetz} lg (aDeclareBlockers atcks inCombat2 isOpponent blcks) = more-health-is-good-b _ (lg (aDeclareBlockers atcks inCombat2 isOpponent blcks) )
 more-opponent-health-is-bad-o s@record{lastPlayerPassed = false} lg aDoNothing         = more-health-is-good-b _ (lg aDoNothing                                          )
 more-opponent-health-is-bad-o s@record{phase = preCombatMain ; lastPlayerPassed = true} lg aDoNothing = more-health-is-good-b _ (lg aDoNothing                           )
-more-opponent-health-is-bad-o s@record{phase = combat stp ; lastPlayerPassed = true} lg aDoNothing = {!more-health-is-good-b _ (lg aDoNothing                                          )!}
-more-opponent-health-is-bad-o s@record{activePlayer = ozzie ; phase = postCombatMain ; lastPlayerPassed = true} lg aDoNothing = {!more-health-is-good-b _ (lg aDoNothing                                          )!}
-more-opponent-health-is-bad-o s@record{activePlayer = brigyeetz ; phase = postCombatMain ; lastPlayerPassed = true} lg aDoNothing = more-health-is-good-b _ (lg aDoNothing                                          )
+more-opponent-health-is-bad-o s@record{phase = combat CombatStart ; lastPlayerPassed = true} lg aDoNothing = more-health-is-good-b _ (lg aDoNothing                            )
+more-opponent-health-is-bad-o s@record{activePlayer = ozzie ; phase = combat (DeclaredAttackers _ _) ; lastPlayerPassed = true} lg aDoNothing = more-health-is-good-b _ (lg aDoNothing)
+more-opponent-health-is-bad-o s@record{activePlayer = brigyeetz ; phase = combat (DeclaredAttackers _ _) ; lastPlayerPassed = true} lg aDoNothing = more-health-is-good-b _ (lg aDoNothing)
+more-opponent-health-is-bad-o s@record{activePlayer = ozzie ; phase = combat (DeclaredBlockers _ _ _) ; lastPlayerPassed = true} lg aDoNothing = {!more-health-is-good-b _ (lg aDoNothing                            )!}
+more-opponent-health-is-bad-o s@record{activePlayer = brigyeetz ; phase = combat (DeclaredBlockers _ _ _) ; lastPlayerPassed = true} lg aDoNothing = more-health-is-good-b _ (lg aDoNothing                            )
+more-opponent-health-is-bad-o s@record{activePlayer = ozzie ; phase = postCombatMain ; lastPlayerPassed = true} lg aDoNothing = more-health-is-good-b _ (lg aDoNothing   )
+more-opponent-health-is-bad-o s@record{activePlayer = brigyeetz ; phase = postCombatMain ; lastPlayerPassed = true} lg aDoNothing = more-health-is-good-b _ (lg aDoNothing)
 
 more-health-is-good-b s (hasWon x) = hasWon x
 more-health-is-good-b s (willWin isAliv (aCastWalker1 isActive inMain hasMana isInHand                , snd)) = willWin tt (aCastWalker1 isActive inMain hasMana isInHand                   , more-opponent-health-is-bad-o _ snd)
@@ -798,11 +803,11 @@ more-opponent-health-is-bad-b : ∀ (s : GameState) → losingGame brigyeetz s �
 more-opponent-health-is-bad-b = {!   !}
 more-health-is-good-o s (hasWon x) = hasWon x
 more-health-is-good-o s (willWin isAliv (aCastWalker1 isActive inMain hasMana isInHand                , snd)) = willWin tt (aCastWalker1 isActive inMain hasMana isInHand                   , {!   !})
-more-health-is-good-o s (willWin isAliv (aCastElixir isActive inMain hasMana isInHand                 , snd)) = willWin tt (aCastElixir isActive inMain {!   !} isInHand                    , {!   !})
-more-health-is-good-o s (willWin isAliv (aActivateWalker1 hasMana canActivate                         , snd)) = willWin tt (aActivateWalker1 {!   !} canActivate                            , {!   !})
+more-health-is-good-o s (willWin isAliv (aCastElixir isActive inMain hasMana isInHand                 , snd)) = willWin tt (aCastElixir isActive inMain hasMana isInHand                    , {!   !})
+more-health-is-good-o s (willWin isAliv (aActivateWalker1 hasMana canActivate                         , snd)) = willWin tt (aActivateWalker1 hasMana canActivate                            , {!   !})
 more-health-is-good-o s (willWin isAliv (aActivateElixir hasMana canActivate                          , snd)) = willWin tt (aActivateElixir hasMana canActivate                             , {!   !})
-more-health-is-good-o s (willWin isAliv (aDeclareAttackers inCombat isActive atcks                    , snd)) = willWin tt ({! aDeclareAttackers inCombat isActive atcks          !}            , {!   !})
-more-health-is-good-o s (willWin isAliv (aDeclareBlockers atcks inCombat2 isOpponent blcks , snd)) = willWin tt ({! aDeclareBlockers atcks inCombat2 isOpponent blcks !}    , {!   !})
+more-health-is-good-o s (willWin isAliv (aDeclareAttackers inCombat isActive@refl atcks               , snd)) = willWin tt (aDeclareAttackers inCombat isActive atcks            , {!   !})
+more-health-is-good-o s@record{activePlayer = brigyeetz} (willWin isAliv (aDeclareBlockers atcks inCombat2 isOpponent@refl blcks , snd)) = willWin tt (aDeclareBlockers atcks inCombat2 isOpponent blcks    , {!   !})
 more-health-is-good-o s (willWin isAliv (aDoNothing                                                   , snd)) = willWin tt ({! aDoNothing!}                                                      , {!   !})
 
 more-health-is-good : ∀ p (s : GameState) → winningGame p s → winningGame p (mapPlayer p s λ sp → record sp { healthTotal = suc (healthTotal sp)})
