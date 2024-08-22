@@ -530,8 +530,10 @@ module _ {p} {pps : AttackContext} {bc : BlockerContext} where
     damageFromWalker2 wSt record { walker2Attack = just _ } record { walker1Block = just (blockWalker2 _ , _) } = 0
     damageFromWalker2 wSt record { walker2Attack = just _ } record { walker2Block = just (blockWalker2 _ , _) } = 0
     damageFromWalker2 wSt record { walker2Attack = just _ } _ = walkerSize wSt
+    calculateDamage : ∀ (a : AttackerInfo pps) (b : BlockerInfo pps a bc) → PlayerState p → PlayerState (opponentOf p) → ℕ
+    calculateDamage a b attacker defender = AttackerInfo.nThopters a + damageFromWalker1 (walker1State attacker) a b + damageFromWalker2 (card2State attacker) a b
     takeDamage : ∀ (a : AttackerInfo pps) (b : BlockerInfo pps a bc) → PlayerState p → PlayerState (opponentOf p) → PlayerState (opponentOf p)
-    takeDamage a b attacker defender = reduceHealthTotal (AttackerInfo.nThopters a + damageFromWalker1 (walker1State attacker) a b + damageFromWalker2 (card2State attacker) a b) defender
+    takeDamage a b attacker defender = reduceHealthTotal (calculateDamage a b attacker defender) defender
 
     -- TODO: Handle thopters
     -- TODO: Destroy smaller creatures
@@ -771,8 +773,21 @@ mapPlayer ozzie s f = record s { ozzieState = f (GameState.ozzieState s) }
 mapPlayer brigyeetz s f = record s { brigyeetzState = f (GameState.brigyeetzState s) }
 -- TODO: Figure out some abstraction to avoid having all these cases
 
+-- mb-more-health-is-good-b : ∀ (s : GameState) → winningGame brigyeetz s → winningGame brigyeetz (mapPlayer brigyeetz s λ sp → record sp { healthTotal = suc (healthTotal sp)})
+∸-suc : ∀ n m → (suc n ∸ m ≡ n ∸ m) ⊎ (suc n ∸ m ≡ suc (n ∸ m))
+∸-suc n zero = inj₂ refl
+∸-suc zero (suc m) = inj₁ (0∸n≡0 m)
+∸-suc (suc n) (suc m) = ∸-suc n m
+
+subst-health : ∀ (P : GameState → Set) p (s : GameState) {m} → (GameState.stateOfPlayer s p .healthTotal ≡ m) → P s → P (mapPlayer p s λ sp → record sp { healthTotal = m})
+subst-health P ozzie s eq Ps = subst (λ a → P (mapPlayer ozzie s (λ sp → record sp { healthTotal = a }))) eq Ps
+subst-health P brigyeetz s eq Ps = subst (λ a → P (mapPlayer brigyeetz s (λ sp → record sp { healthTotal = a }))) eq Ps
+
+mb-more-health-is-good-b : ∀ (s : GameState) n → winningGame brigyeetz (mapPlayer brigyeetz s λ sp → record sp { healthTotal = (healthTotal sp ∸ n)}) → winningGame brigyeetz (mapPlayer brigyeetz s λ sp → record sp { healthTotal = suc (healthTotal sp) ∸ n})
 more-health-is-good-b : ∀ (s : GameState) → winningGame brigyeetz s → winningGame brigyeetz (mapPlayer brigyeetz s λ sp → record sp { healthTotal = suc (healthTotal sp)})
 more-opponent-health-is-bad-o : ∀ (s : GameState) → losingGame ozzie s → losingGame ozzie (mapPlayer brigyeetz s λ sp → record sp { healthTotal = suc (healthTotal sp)}  )
+mb-more-health-is-good-b = {!   !}
+
 more-opponent-health-is-bad-o s lg (aCastWalker1 isActive inMain hasMana isInHand)     = more-health-is-good-b _ (lg (aCastWalker1 isActive inMain hasMana isInHand)     )
 more-opponent-health-is-bad-o s lg (aCastElixir isActive inMain hasMana isInHand)      = more-health-is-good-b _ (lg (aCastElixir isActive inMain hasMana isInHand)      )
 more-opponent-health-is-bad-o s lg (aActivateWalker1 hasMana canActivate)              = more-health-is-good-b _ (lg (aActivateWalker1 hasMana canActivate)              )
@@ -784,7 +799,12 @@ more-opponent-health-is-bad-o s@record{phase = preCombatMain ; lastPlayerPassed 
 more-opponent-health-is-bad-o s@record{phase = combat CombatStart ; lastPlayerPassed = true} lg aDoNothing = more-health-is-good-b _ (lg aDoNothing                            )
 more-opponent-health-is-bad-o s@record{activePlayer = ozzie ; phase = combat (DeclaredAttackers _ _) ; lastPlayerPassed = true} lg aDoNothing = more-health-is-good-b _ (lg aDoNothing)
 more-opponent-health-is-bad-o s@record{activePlayer = brigyeetz ; phase = combat (DeclaredAttackers _ _) ; lastPlayerPassed = true} lg aDoNothing = more-health-is-good-b _ (lg aDoNothing)
-more-opponent-health-is-bad-o s@record{activePlayer = ozzie ; phase = combat (DeclaredBlockers _ _ _) ; lastPlayerPassed = true} lg aDoNothing = {!more-health-is-good-b _ (lg aDoNothing                            )!}
+more-opponent-health-is-bad-o s@record{activePlayer = ozzie ; phase = combat (DeclaredBlockers _ a b) ; lastPlayerPassed = true} lg aDoNothing =
+    case ∸-suc (s .GameState.brigyeetzState .healthTotal) (calculateDamage a b (s .GameState.ozzieState) (s .GameState.brigyeetzState)) of λ where
+        (inj₁ x) → subst-health (winningGame brigyeetz) brigyeetz _ (sym x) (lg aDoNothing)
+        (inj₂ y) → subst-health (winningGame brigyeetz) brigyeetz _ (sym y) (more-health-is-good-b _ (lg aDoNothing))
+-- more-opponent-health-is-bad-o s@record{activePlayer = ozzie ; phase = combat (DeclaredBlockers _ a b) ; lastPlayerPassed = true} lg aDoNothing = {! s .GameState.brigyeetzState .healthTotal ∸ (calculateDamage a b ? ?)  !}
+-- more-opponent-health-is-bad-o s@record{activePlayer = ozzie ; phase = combat (DeclaredBlockers _ _ _) ; lastPlayerPassed = true} lg aDoNothing = {!more-health-is-good-b _ (lg aDoNothing)!}
 more-opponent-health-is-bad-o s@record{activePlayer = brigyeetz ; phase = combat (DeclaredBlockers _ _ _) ; lastPlayerPassed = true} lg aDoNothing = more-health-is-good-b _ (lg aDoNothing                            )
 more-opponent-health-is-bad-o s@record{activePlayer = ozzie ; phase = postCombatMain ; lastPlayerPassed = true} lg aDoNothing = more-health-is-good-b _ (lg aDoNothing   )
 more-opponent-health-is-bad-o s@record{activePlayer = brigyeetz ; phase = postCombatMain ; lastPlayerPassed = true} lg aDoNothing = more-health-is-good-b _ (lg aDoNothing)
