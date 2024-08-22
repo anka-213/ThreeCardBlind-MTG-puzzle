@@ -87,6 +87,8 @@ opponentOf brigyeetz = ozzie
 -- {-# INJECTIVE_FOR_INFERENCE opponentOf #-}
 
 record ThopterState : Set where
+    pattern
+    no-eta-equality
     field
         tappedThopters : ℕ
         untappedUnsickThopters : ℕ
@@ -730,14 +732,14 @@ HasBigWalkers : GameState → Set
 HasBigWalkers s@record
     { phase = combat CombatStart
     ; activePlayer = brigyeetz
-    ; ozzieState = record { healthTotal = health ; thopters = noThopters ; isCityUntapped = false}
+    ; ozzieState = record { healthTotal = health ; thopters = thopters ; isCityUntapped = false}
     ; brigyeetzState = record
         { healthTotal = suc _
         ; walker1State = onBattlefield record { isTapped = false ; summoningSickness = false ; nCounters = size1 }
         ; card2State = onBattlefield record { isTapped = false ; summoningSickness = false ; nCounters = size2 }
         }
     ; lastPlayerPassed = _
-    } = (health ≤ size1) × (health ≤ size2)
+    } = (health ≤ size1) × (health ≤ size2) × (thopters ≡ noThopters)
 HasBigWalkers _ = ⊥
 
 big-walker-game-wins : ∀ s → HasBigWalkers s → winningGame brigyeetz s
@@ -750,9 +752,19 @@ big-walker-game-wins s@record
         ; walker1State = onBattlefield record { isTapped = false ; summoningSickness = false ; nCounters = size1 }
         ; card2State = onBattlefield record { isTapped = false ; summoningSickness = false ; nCounters = size2 }
         }
-    } (big1 , big2) = willWin tt
+    } (big1 , big2 , refl) = willWin tt
         ((aDeclareAttackers refl refl (record { thoptersAttack = 0 , z≤n ; walker1Attack = just tt ; walker2Attack = just tt })) , λ where
-            (aDeclareBlockers _attck refl refl record { thopter-thopter-blocks = thopter-thopter-blocks ; thopter-block-walker1 = thopter-block-walker1 ; thopter-block-walker2 = thopter-block-walker2 ; total-thopters = total-thopters ; walker1Block = walker1Block ; walker2Block = walker2Block }) → {! thopter-thopter-blocks thopter-block-walker1 thopter-block-walker2 total-thopters walker1Block walker2Block  !}
+            -- (aDeclareBlockers _attck refl refl record { thopter-thopter-blocks = th-th-bl ; thopter-block-walker1 = tbw1 ; thopter-block-walker2 = tbw2 ; total-thopters = total-thopters ; walker1Block = walker1Block ; walker2Block = walker2Block }) → {! tbw1 total-thopters  !}
+            (aDeclareBlockers _attck refl refl record { thopter-block-walker1 = just x ; total-thopters = () })
+            (aDeclareBlockers _attck refl refl record { thopter-block-walker1 = nothing ; thopter-block-walker2 = just x ; total-thopters = () })
+            (aDeclareBlockers _attck refl refl record { thopter-thopter-blocks = suc _ , _ ; thopter-block-walker1 = nothing ; thopter-block-walker2 = nothing ; total-thopters = () })
+            (aDeclareBlockers _attck refl refl record { thopter-thopter-blocks = 0 , _ ; thopter-block-walker1 = nothing  ; thopter-block-walker2 = nothing ; walker1Block = w1b ; walker2Block = just (_ , ()) })
+            (aDeclareBlockers _attck refl refl record { thopter-thopter-blocks = 0 , _ ; thopter-block-walker1 = nothing  ; thopter-block-walker2 = nothing ; walker1Block = nothing ; walker2Block = nothing }) → willWin tt (aDoNothing , (λ where
+                aDoNothing → hasWon (m≤n⇒m∸n≡0 {health} {size1 + size2} (≤-trans big1 (m≤m+n size1 size2)))))
+            (aDeclareBlockers _attck refl refl record { thopter-thopter-blocks = 0 , _ ; thopter-block-walker1 = nothing  ; thopter-block-walker2 = nothing ; walker1Block = just (blockWalker1 tgt , pf) ; walker2Block = nothing }) → willWin tt (aDoNothing , λ where
+                aDoNothing → hasWon (m≤n⇒m∸n≡0 big2))
+            (aDeclareBlockers _attck refl refl record { thopter-thopter-blocks = 0 , _ ; thopter-block-walker1 = nothing  ; thopter-block-walker2 = nothing ; walker1Block = just (blockWalker2 tgt , pf) ; walker2Block = nothing }) → willWin tt (aDoNothing , λ where
+                aDoNothing → hasWon (Relation.Binary.PropositionalEquality.trans (cong (health ∸_) (+-identityʳ size1)) (m≤n⇒m∸n≡0 {health} {size1} big1)))
             -- (aDeclareBlockers _attck refl refl record { thopter-thopter-blocks = thopter-thopter-blocks ; thopter-block-walker1 = thopter-block-walker1 ; thopter-block-walker2 = thopter-block-walker2 ; total-thopters = total-thopters ; walker1Block = walker1Block ; walker2Block = walker2Block }) → {! thopter-thopter-blocks thopter-block-walker1 thopter-block-walker2 total-thopters walker1Block walker2Block  !}
             aDoNothing → willWin tt $ aDoNothing , λ where
                 aDoNothing → willWin tt $ aDoNothing , λ where
@@ -778,6 +790,7 @@ mapPlayer brigyeetz s f = record s { brigyeetzState = f (GameState.brigyeetzStat
 ∸-suc n zero = inj₂ refl
 ∸-suc zero (suc m) = inj₁ (0∸n≡0 m)
 ∸-suc (suc n) (suc m) = ∸-suc n m
+
 
 subst-health : ∀ (P : GameState → Set) p (s : GameState) {m} → (GameState.stateOfPlayer s p .healthTotal ≡ m) → P s → P (mapPlayer p s λ sp → record sp { healthTotal = m})
 subst-health P ozzie s eq Ps = subst (λ a → P (mapPlayer ozzie s (λ sp → record sp { healthTotal = a }))) eq Ps
@@ -868,3 +881,10 @@ more-health-is-good = {!   !}
 -- -}
 
 -- -}
+
+-- TODO: Prove that actions commute over health
+-- TODO: Complete the implementation of blocking
+-- TODO: Some kind of progress on the actual proof
+-- TODO: Dynamic programming to enumerate possibilities
+-- TODO: Enumerate possibilities and convert with agda2hs
+-- TODO: Prove that an abstraction over an entire turn is equivalent
