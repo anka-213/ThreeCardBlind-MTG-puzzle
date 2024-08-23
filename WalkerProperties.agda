@@ -11,13 +11,13 @@ open import HangarbackWalker
 
 open PlayerState
 
+new-states-for : ∀ p → PlayerState ozzie → PlayerState brigyeetz → (PlayerState p → PlayerState p) → PlayerState ozzie × PlayerState brigyeetz
+new-states-for ozzie     ozSt brSt f = f ozSt , brSt
+new-states-for brigyeetz ozSt brSt f = ozSt , f brSt
 mapPlayer : ∀ p → GameState → (PlayerState p → PlayerState p) → GameState
 mapPlayer p s f = record s { ozzieState = new-states .proj₁ ; brigyeetzState = new-states .proj₂ }
   where
     open GameState
-    new-states-for : ∀ p → PlayerState ozzie → PlayerState brigyeetz → (PlayerState p → PlayerState p) → PlayerState ozzie × PlayerState brigyeetz
-    new-states-for ozzie     ozSt brSt f = f ozSt , brSt
-    new-states-for brigyeetz ozSt brSt f = ozSt , f brSt
     new-states = new-states-for p (ozzieState s) (brigyeetzState s) f
 -- mapPlayer ozzie s f = record s { ozzieState = f (GameState.ozzieState s) }
 -- mapPlayer brigyeetz s f = record s { brigyeetzState = f (GameState.brigyeetzState s) }
@@ -28,6 +28,11 @@ mapPlayer p s f = record s { ozzieState = new-states .proj₁ ; brigyeetzState =
 ∸-suc n zero = inj₂ refl
 ∸-suc zero (suc m) = inj₁ (0∸n≡0 m)
 ∸-suc (suc n) (suc m) = ∸-suc n m
+
+∸-+-comm2 : ∀ n m k → Σ[ l ∈ ℕ ] (n + k) ∸ m ≡ (n ∸ m) + l
+∸-+-comm2 n zero k = k , refl
+∸-+-comm2 zero (suc m) k = k ∸ suc m , refl
+∸-+-comm2 (suc n) (suc m) k = ∸-+-comm2 n m k
 
 mapHealth : ∀ (p : Player) (s : GameState) (f : ℕ → ℕ) → GameState
 mapHealth p s f = mapPlayer p s λ sp → record sp { healthTotal = f (healthTotal sp)}
@@ -129,8 +134,29 @@ health-map-action p1 p2         s n (aDoNothing                                 
 -- health-map-action brigyeetz p2         s n (aDoNothing                                        ) = (aDoNothing                                        )
 
 
+-- IDEA: Transpose player-state, so the state contains both players' states for each variable.
+-- This would make more things independent of each other without picking an explict player.
+-- This would howoever make it more difficult to handle only the state for one player.
+
 health-ineq-preserved : ∀ (p1 p2 : Player) (s : GameState) (n : ℕ) (act : Action s p2)
     → Σ[ m ∈ ℕ ] performAction (mapHealth p1 s (_+ n)) p2 (health-map-action p1 p2 s n act) ≡ mapHealth p1 (performAction s p2 act) (_+ m)
+-- health-ineq-preserved p1 p2         s n (aCastWalker1 isActive inMain hasMana isInHand         ) = n , {! refl  !}
+-- health-ineq-preserved p1 .brigyeetz s n (aCastWalker2 isActive inMain hasMana isInHand         ) = n , {!   !}
+-- health-ineq-preserved p1 .ozzie     s n (aCastElixir isActive inMain hasMana isInHand          ) = n , {!   !}
+-- health-ineq-preserved p1 p2         s n (aActivateWalker1 hasMana canActivate                  ) = n , {!   !}
+-- health-ineq-preserved p1 .brigyeetz s n (aActivateWalker2 hasMana canActivate                  ) = n , {!   !}
+-- health-ineq-preserved p1 .ozzie     s n act@(aActivateElixir hasMana canActivate               ) = n , {!   !}
+-- health-ineq-preserved p1 p2         s n (aDeclareAttackers inCombat isActive@refl atcks        ) = n , {!   !}
+-- health-ineq-preserved p1 p2         s n (aDeclareBlockers atcks inCombat2 isOpponent@refl blcks) = n , {!   !}
+-- health-ineq-preserved p1 p2         s@record{lastPlayerPassed = false} n (aDoNothing           ) = n , refl
+-- health-ineq-preserved p1 p2         s@record{lastPlayerPassed = true ; phase = preCombatMain      } n (aDoNothing) = {! n , refl  !}
+-- health-ineq-preserved p1 p2         s@record{lastPlayerPassed = true ; phase = combat CombatStart } n (aDoNothing) = {! n , refl  !}
+-- health-ineq-preserved p1 p2         s@record{lastPlayerPassed = true ; activePlayer = ozzie     ; phase = combat (DeclaredAttackers _ _) } n (aDoNothing) = {! n , refl  !}
+-- health-ineq-preserved p1 p2         s@record{lastPlayerPassed = true ; activePlayer = brigyeetz ; phase = combat (DeclaredAttackers _ _) } n (aDoNothing) = {! n , refl  !}
+-- health-ineq-preserved p1 p2         s@record{lastPlayerPassed = true ; activePlayer = ozzie     ; phase = combat (DeclaredBlockers _ a b)} n (aDoNothing) = {! n , refl  !}
+-- health-ineq-preserved p1 p2         s@record{lastPlayerPassed = true ; activePlayer = brigyeetz ; phase = combat (DeclaredBlockers _ _ _)} n (aDoNothing) = {! n , refl  !}
+-- health-ineq-preserved p1 p2         s@record{lastPlayerPassed = true ; activePlayer = ozzie     ; phase = postCombatMain      } n (aDoNothing           ) = {! n , refl  !}
+-- health-ineq-preserved p1 p2         s@record{lastPlayerPassed = true ; activePlayer = brigyeetz ; phase = postCombatMain      } n (aDoNothing           ) = {! n , refl  !}
 health-ineq-preserved ozzie ozzie      s n (aCastWalker1 isActive inMain hasMana isInHand         ) = n , refl
 health-ineq-preserved ozzie brigyeetz  s n (aCastWalker1 isActive inMain hasMana isInHand         ) = n , refl
 health-ineq-preserved ozzie .brigyeetz s n (aCastWalker2 isActive inMain hasMana isInHand         ) = n , refl
@@ -143,16 +169,17 @@ health-ineq-preserved ozzie ozzie      s n (aDeclareAttackers inCombat isActive@
 health-ineq-preserved ozzie brigyeetz  s n (aDeclareAttackers inCombat isActive@refl atcks        ) = n , refl
 health-ineq-preserved ozzie ozzie      s n (aDeclareBlockers atcks inCombat2 isOpponent@refl blcks) = n , refl
 health-ineq-preserved ozzie brigyeetz  s n (aDeclareBlockers atcks inCombat2 isOpponent@refl blcks) = n , refl
-health-ineq-preserved ozzie ozzie      s@record{lastPlayerPassed = false} n (aDoNothing           ) = n , refl
-health-ineq-preserved ozzie brigyeetz  s@record{lastPlayerPassed = false} n (aDoNothing           ) = n , refl
-health-ineq-preserved ozzie p2         s@record{lastPlayerPassed = true ; phase = preCombatMain      } n (aDoNothing) = {! n , refl  !}
-health-ineq-preserved ozzie p2         s@record{lastPlayerPassed = true ; phase = combat CombatStart } n (aDoNothing) = {! n , refl  !}
-health-ineq-preserved ozzie p2         s@record{lastPlayerPassed = true ; activePlayer = ozzie     ; phase = combat (DeclaredAttackers _ _) } n (aDoNothing) = {! n , refl  !}
-health-ineq-preserved ozzie p2         s@record{lastPlayerPassed = true ; activePlayer = brigyeetz ; phase = combat (DeclaredAttackers _ _) } n (aDoNothing) = {! n , refl  !}
-health-ineq-preserved ozzie p2         s@record{lastPlayerPassed = true ; activePlayer = ozzie     ; phase = combat (DeclaredBlockers _ a b)} n (aDoNothing) = {! n , refl  !}
-health-ineq-preserved ozzie p2         s@record{lastPlayerPassed = true ; activePlayer = brigyeetz ; phase = combat (DeclaredBlockers _ _ _)} n (aDoNothing) = {! n , refl  !}
-health-ineq-preserved ozzie p2         s@record{lastPlayerPassed = true ; activePlayer = ozzie     ; phase = postCombatMain      } n (aDoNothing           ) = {! n , refl  !}
-health-ineq-preserved ozzie p2         s@record{lastPlayerPassed = true ; activePlayer = brigyeetz ; phase = postCombatMain      } n (aDoNothing           ) = {! n , refl  !}
+health-ineq-preserved p1    p2         s@record{lastPlayerPassed = false} n (aDoNothing           ) = n , refl
+health-ineq-preserved ozzie p2         s@record{lastPlayerPassed = true ; phase = preCombatMain      } n (aDoNothing) = n , refl
+health-ineq-preserved ozzie p2         s@record{lastPlayerPassed = true ; phase = combat CombatStart } n (aDoNothing) = n , refl
+health-ineq-preserved ozzie p2         s@record{lastPlayerPassed = true ; activePlayer = ozzie     ; phase = combat (DeclaredAttackers _ _) } n (aDoNothing) = n , refl
+health-ineq-preserved ozzie p2         s@record{lastPlayerPassed = true ; activePlayer = brigyeetz ; phase = combat (DeclaredAttackers _ _) } n (aDoNothing) = n , refl
+health-ineq-preserved ozzie p2         s@record{lastPlayerPassed = true ; activePlayer = ozzie     ; phase = combat (DeclaredBlockers _ a b)} n (aDoNothing) = n , refl
+health-ineq-preserved ozzie p2         s@record{lastPlayerPassed = true ; activePlayer = brigyeetz ; phase = combat (DeclaredBlockers _ a b)} n (aDoNothing) =
+    Data.Product.map₂ (cong (setHealth ozzie (changePhase s postCombatMain)))
+        (∸-+-comm2 (s .GameState.ozzieState .healthTotal) (calculateDamage a b (s .GameState.brigyeetzState) (s .GameState.ozzieState)) n)
+health-ineq-preserved ozzie p2         s@record{lastPlayerPassed = true ; activePlayer = ozzie     ; phase = postCombatMain      } n (aDoNothing           ) = n , refl
+health-ineq-preserved ozzie p2         s@record{lastPlayerPassed = true ; activePlayer = brigyeetz ; phase = postCombatMain      } n (aDoNothing           ) = n , refl
 health-ineq-preserved brigyeetz ozzie      s n (aCastWalker1 isActive inMain hasMana isInHand         ) = n , refl
 health-ineq-preserved brigyeetz brigyeetz  s n (aCastWalker1 isActive inMain hasMana isInHand         ) = n , refl
 health-ineq-preserved brigyeetz .brigyeetz s n (aCastWalker2 isActive inMain hasMana isInHand         ) = n , refl
@@ -165,7 +192,16 @@ health-ineq-preserved brigyeetz ozzie      s n (aDeclareAttackers inCombat isAct
 health-ineq-preserved brigyeetz brigyeetz  s n (aDeclareAttackers inCombat isActive@refl atcks        ) = n , refl
 health-ineq-preserved brigyeetz ozzie      s n (aDeclareBlockers atcks inCombat2 isOpponent@refl blcks) = n , refl
 health-ineq-preserved brigyeetz brigyeetz  s n (aDeclareBlockers atcks inCombat2 isOpponent@refl blcks) = n , refl
-health-ineq-preserved brigyeetz p2         s n (aDoNothing                                            ) = {!   !}
+health-ineq-preserved brigyeetz p2         s@record{lastPlayerPassed = true ; phase = preCombatMain      } n (aDoNothing) = n , refl
+health-ineq-preserved brigyeetz p2         s@record{lastPlayerPassed = true ; phase = combat CombatStart } n (aDoNothing) = n , refl
+health-ineq-preserved brigyeetz p2         s@record{lastPlayerPassed = true ; activePlayer = brigyeetz ; phase = combat (DeclaredAttackers _ _) } n (aDoNothing) = n , refl
+health-ineq-preserved brigyeetz p2         s@record{lastPlayerPassed = true ; activePlayer = ozzie     ; phase = combat (DeclaredAttackers _ _) } n (aDoNothing) = n , refl
+health-ineq-preserved brigyeetz p2         s@record{lastPlayerPassed = true ; activePlayer = brigyeetz ; phase = combat (DeclaredBlockers _ a b)} n (aDoNothing) = n , refl
+health-ineq-preserved brigyeetz p2         s@record{lastPlayerPassed = true ; activePlayer = ozzie     ; phase = combat (DeclaredBlockers _ a b)} n (aDoNothing) =
+    Data.Product.map₂ (cong (setHealth brigyeetz (changePhase s postCombatMain)))
+        (∸-+-comm2 (s .GameState.brigyeetzState .healthTotal) (calculateDamage a b (s .GameState.ozzieState) (s .GameState.brigyeetzState)) n)
+health-ineq-preserved brigyeetz p2         s@record{lastPlayerPassed = true ; activePlayer = ozzie     ; phase = postCombatMain      } n (aDoNothing           ) = n , refl
+health-ineq-preserved brigyeetz p2         s@record{lastPlayerPassed = true ; activePlayer = brigyeetz ; phase = postCombatMain      } n (aDoNothing           ) = n , refl
 
 mb-more-health-is-good-b : ∀ (s : GameState) n → winningGame brigyeetz (mapHealth brigyeetz s (_∸ n)) → winningGame brigyeetz (mapHealth brigyeetz s λ hlth → suc hlth ∸ n)
 more-health-is-good-b : ∀ (s : GameState) → winningGame brigyeetz s → winningGame brigyeetz (mapHealth brigyeetz s suc)
