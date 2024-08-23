@@ -577,7 +577,7 @@ module _ (s : GameState) where
         aActivateWalker2 : ∀ (hasMana : HasMana brigyeetzState 1) (canActivate : canActivateWalker (card2State brigyeetzState)) → Action brigyeetz
         aActivateElixir : ∀ (hasMana : HasMana ozzieState 2) (canActivate : card2State ozzieState ≡ onBattlefield elixirState) → Action ozzie
         aDeclareAttackers : ∀ {p} (inCombat : phase ≡ combat CombatStart) (isActive : p ≡ activePlayer) (atcks : AttackerInfo (attackContextFor activePlayerState)) → Action p
-        aDeclareBlockers : ∀ {p} {pps : AttackContext} (atcks : AttackerInfo pps) (inCombat2 : phase ≡ combat (DeclaredAttackers pps atcks)) (isOpponent : p ≡ opponent) (blcks : BlockerInfo pps atcks (blockerContextFor opponentState)) → Action p
+        aDeclareBlockers : ∀ {p} {pps : AttackContext} (atcks : AttackerInfo pps) (inCombat2 : phase ≡ combat (DeclaredAttackers pps atcks)) (isOpponent : opponentOf p ≡ activePlayer) (blcks : BlockerInfo pps atcks (blockerContextFor opponentState)) → Action p
         aDoNothing : ∀ {p} → Action p
 
     performAction : ∀ p → Action p → GameState
