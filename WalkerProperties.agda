@@ -232,30 +232,30 @@ more-opponent-health-is-bad-o s@record{activePlayer = ozzie ; phase = postCombat
 more-opponent-health-is-bad-o s@record{activePlayer = brigyeetz ; phase = postCombatMain ; lastPlayerPassed = true} lg aDoNothing = more-health-is-good-b _ (lg aDoNothing)
 
 more-health-is-good-b s (hasWon x) = hasWon x
-more-health-is-good-b s (willWin isAliv (aCastWalker1 isActive inMain hasMana isInHand                , snd)) = willWin tt (aCastWalker1 isActive inMain hasMana isInHand                   , more-opponent-health-is-bad-o _ snd)
-more-health-is-good-b s (willWin isAliv (aCastWalker2 isActive inMain hasMana isInHand                , snd)) = willWin tt (aCastWalker2 isActive inMain hasMana isInHand                   , more-opponent-health-is-bad-o _ snd)
-more-health-is-good-b s (willWin isAliv (aActivateWalker1 hasMana canActivate                         , snd)) = willWin tt (aActivateWalker1 hasMana canActivate                            , more-opponent-health-is-bad-o _ snd)
-more-health-is-good-b s (willWin isAliv (aActivateWalker2 hasMana canActivate                         , snd)) = willWin tt (aActivateWalker2 hasMana canActivate                            , more-opponent-health-is-bad-o _ snd)
-more-health-is-good-b s (willWin isAliv (aDeclareAttackers inCombat isActive@refl atcks               , snd)) = willWin tt (aDeclareAttackers inCombat isActive atcks                       , more-opponent-health-is-bad-o _ snd)
-more-health-is-good-b s@record{activePlayer = ozzie} (willWin isAliv (aDeclareBlockers atcks inCombat2 isOpponent@refl blcks , snd)) = willWin tt (aDeclareBlockers atcks inCombat2 isOpponent blcks    , more-opponent-health-is-bad-o _ snd)
+more-health-is-good-b s (willWin isAliv (aCastWalker1 isActive inMain hasMana isInHand                , snd)) = willWin nonZero (aCastWalker1 isActive inMain hasMana isInHand                   , more-opponent-health-is-bad-o _ snd)
+more-health-is-good-b s (willWin isAliv (aCastWalker2 isActive inMain hasMana isInHand                , snd)) = willWin nonZero (aCastWalker2 isActive inMain hasMana isInHand                   , more-opponent-health-is-bad-o _ snd)
+more-health-is-good-b s (willWin isAliv (aActivateWalker1 hasMana canActivate                         , snd)) = willWin nonZero (aActivateWalker1 hasMana canActivate                            , more-opponent-health-is-bad-o _ snd)
+more-health-is-good-b s (willWin isAliv (aActivateWalker2 hasMana canActivate                         , snd)) = willWin nonZero (aActivateWalker2 hasMana canActivate                            , more-opponent-health-is-bad-o _ snd)
+more-health-is-good-b s (willWin isAliv (aDeclareAttackers inCombat isActive@refl atcks               , snd)) = willWin nonZero (aDeclareAttackers inCombat isActive atcks                       , more-opponent-health-is-bad-o _ snd)
+more-health-is-good-b s@record{activePlayer = ozzie} (willWin isAliv (aDeclareBlockers atcks inCombat2 isOpponent@refl blcks , snd)) = willWin nonZero (aDeclareBlockers atcks inCombat2 isOpponent blcks    , more-opponent-health-is-bad-o _ snd)
 more-health-is-good-b s@record{lastPlayerPassed = false} (willWin isAliv (aDoNothing , snd)) =
-    willWin tt (aDoNothing , more-opponent-health-is-bad-o _ snd                                          )
+    willWin nonZero (aDoNothing , more-opponent-health-is-bad-o _ snd                                          )
 more-health-is-good-b s@record{phase = preCombatMain ; lastPlayerPassed = true} (willWin isAliv (aDoNothing , snd)) =
-    willWin tt (aDoNothing , more-opponent-health-is-bad-o _ snd                           )
+    willWin nonZero (aDoNothing , more-opponent-health-is-bad-o _ snd                           )
 more-health-is-good-b s@record{phase = combat CombatStart ; lastPlayerPassed = true} (willWin isAliv (aDoNothing , snd)) =
-    willWin tt (aDoNothing , more-opponent-health-is-bad-o _ snd                            )
+    willWin nonZero (aDoNothing , more-opponent-health-is-bad-o _ snd                            )
 more-health-is-good-b s@record{activePlayer = ozzie ; phase = combat (DeclaredAttackers _ _) ; lastPlayerPassed = true} (willWin isAliv (aDoNothing , snd)) =
-    willWin tt (aDoNothing , more-opponent-health-is-bad-o _ snd)
+    willWin nonZero (aDoNothing , more-opponent-health-is-bad-o _ snd)
 more-health-is-good-b s@record{activePlayer = brigyeetz ; phase = combat (DeclaredAttackers _ _) ; lastPlayerPassed = true} (willWin isAliv (aDoNothing , snd)) =
-    willWin tt (aDoNothing , more-opponent-health-is-bad-o _ snd)
+    willWin nonZero (aDoNothing , more-opponent-health-is-bad-o _ snd)
 more-health-is-good-b s@record{activePlayer = brigyeetz ; phase = combat (DeclaredBlockers _ _ _) ; lastPlayerPassed = true} (willWin isAliv (aDoNothing , snd)) =
-    willWin tt (aDoNothing , more-opponent-health-is-bad-o _ snd                            )
+    willWin nonZero (aDoNothing , more-opponent-health-is-bad-o _ snd                            )
 more-health-is-good-b s@record{activePlayer = ozzie ; phase = postCombatMain ; lastPlayerPassed = true} (willWin isAliv (aDoNothing , snd)) =
-    willWin tt (aDoNothing , more-opponent-health-is-bad-o _ snd   )
+    willWin nonZero (aDoNothing , more-opponent-health-is-bad-o _ snd   )
 more-health-is-good-b s@record{activePlayer = brigyeetz ; phase = postCombatMain ; lastPlayerPassed = true} (willWin isAliv (aDoNothing , snd)) =
-    willWin tt (aDoNothing , more-opponent-health-is-bad-o _ snd)
+    willWin nonZero (aDoNothing , more-opponent-health-is-bad-o _ snd)
 more-health-is-good-b s@record{activePlayer = ozzie ; phase = combat (DeclaredBlockers _ a b) ; lastPlayerPassed = true} (willWin isAliv (aDoNothing , snd)) =
-    willWin tt (aDoNothing , (
+    willWin nonZero (aDoNothing , (
         case ∸-suc (s .GameState.brigyeetzState .healthTotal) (calculateDamage a b (s .GameState.ozzieState) (s .GameState.brigyeetzState)) of λ where
             (inj₁ x) → subst-health (losingGame ozzie) brigyeetz _ (sym x) snd
             (inj₂ y) → subst-health (losingGame ozzie) brigyeetz _ (sym y) (more-opponent-health-is-bad-o _ snd)
@@ -265,13 +265,13 @@ more-health-is-good-o : ∀ (s : GameState) → winningGame ozzie s → winningG
 more-opponent-health-is-bad-b : ∀ (s : GameState) → losingGame brigyeetz s → losingGame brigyeetz (mapPlayer ozzie s λ sp → record sp { healthTotal = suc (healthTotal sp)})
 more-opponent-health-is-bad-b = {!   !}
 more-health-is-good-o s (hasWon x) = hasWon x
-more-health-is-good-o s (willWin isAliv (aCastWalker1 isActive inMain hasMana isInHand                , snd)) = willWin tt (aCastWalker1 isActive inMain hasMana isInHand                   , {! more-opponent-health-is-bad-b _ snd  !})
-more-health-is-good-o s (willWin isAliv (aCastElixir isActive inMain hasMana isInHand                 , snd)) = willWin tt (aCastElixir isActive inMain hasMana isInHand                    , {! more-opponent-health-is-bad-b _ snd  !})
-more-health-is-good-o s (willWin isAliv (aActivateWalker1 hasMana canActivate                         , snd)) = willWin tt (aActivateWalker1 hasMana canActivate                            , {! more-opponent-health-is-bad-b _ snd  !})
-more-health-is-good-o s (willWin isAliv (aActivateElixir hasMana canActivate                          , snd)) = willWin tt (aActivateElixir hasMana canActivate                             , {! more-opponent-health-is-bad-b _ snd  !})
-more-health-is-good-o s (willWin isAliv (aDeclareAttackers inCombat isActive@refl atcks               , snd)) = willWin tt (aDeclareAttackers inCombat isActive atcks                       , {! more-opponent-health-is-bad-b _ snd  !})
-more-health-is-good-o s@record{activePlayer = brigyeetz} (willWin isAliv (aDeclareBlockers atcks inCombat2 isOpponent@refl blcks , snd)) = willWin tt (aDeclareBlockers atcks inCombat2 isOpponent blcks    , {! more-opponent-health-is-bad-b _ snd  !})
-more-health-is-good-o s (willWin isAliv (aDoNothing                                                   , snd)) = willWin tt ({! aDoNothing!}                                               , {! more-opponent-health-is-bad-b _ snd  !})
+more-health-is-good-o s (willWin isAliv (aCastWalker1 isActive inMain hasMana isInHand                , snd)) = willWin nonZero (aCastWalker1 isActive inMain hasMana isInHand                   , {! more-opponent-health-is-bad-b _ snd  !})
+more-health-is-good-o s (willWin isAliv (aCastElixir isActive inMain hasMana isInHand                 , snd)) = willWin nonZero (aCastElixir isActive inMain hasMana isInHand                    , {! more-opponent-health-is-bad-b _ snd  !})
+more-health-is-good-o s (willWin isAliv (aActivateWalker1 hasMana canActivate                         , snd)) = willWin nonZero (aActivateWalker1 hasMana canActivate                            , {! more-opponent-health-is-bad-b _ snd  !})
+more-health-is-good-o s (willWin isAliv (aActivateElixir hasMana canActivate                          , snd)) = willWin nonZero (aActivateElixir hasMana canActivate                             , {! more-opponent-health-is-bad-b _ snd  !})
+more-health-is-good-o s (willWin isAliv (aDeclareAttackers inCombat isActive@refl atcks               , snd)) = willWin nonZero (aDeclareAttackers inCombat isActive atcks                       , {! more-opponent-health-is-bad-b _ snd  !})
+more-health-is-good-o s@record{activePlayer = brigyeetz} (willWin isAliv (aDeclareBlockers atcks inCombat2 isOpponent@refl blcks , snd)) = willWin nonZero (aDeclareBlockers atcks inCombat2 isOpponent blcks    , {! more-opponent-health-is-bad-b _ snd  !})
+more-health-is-good-o s (willWin isAliv (aDoNothing                                                   , snd)) = willWin nonZero ({! aDoNothing!}                                               , {! more-opponent-health-is-bad-b _ snd  !})
 
 -- IDEA: Use lenses (s -> (a × a → s)) to model modification.
 -- Issue: Doesnt make chains definitionally equal still
@@ -280,7 +280,7 @@ more-health-is-good-o s (willWin isAliv (aDoNothing                             
 -- Alternative: Macro for pattern matching
 
 nonZero-+ : ∀ n m → NonZero n → NonZero (n + m)
-nonZero-+ (suc n) m nz = tt
+nonZero-+ (suc n) m nz = nonZero
 
 more-health-is-good : ∀ p n (s : GameState) → winningGame p s → winningGame p (mapHealth p s (_+ n))
 more-opponent-health-is-bad : ∀ p n (s : GameState) → losingGame p s → losingGame p (mapHealth (opponentOf p) s (_+ n))
@@ -308,8 +308,8 @@ more-opponent-health-is-bad p@brigyeetz n s lost act = {!   !}
 -- more-opponent-health-is-bad p@ozzie n s lost act = {!  subst (λ n → Action (setHealth ozzie s n) ozzie) ? (health-map-action p p (mapHealth ozzie s (_+ n)) (_∸ n)  act) !}
 -- need inverse of health-map-action
 
--- more-health-is-good ozzie      s (willWin isAliv (aCastWalker1 x x₁ hasMana isInHand , snd)) = willWin tt {!   !}
--- more-health-is-good brigyeetz  s (willWin isAliv (aCastWalker1 x x₁ hasMana isInHand , snd)) = willWin tt {!   !}
+-- more-health-is-good ozzie      s (willWin isAliv (aCastWalker1 x x₁ hasMana isInHand , snd)) = willWin nonZero {!   !}
+-- more-health-is-good brigyeetz  s (willWin isAliv (aCastWalker1 x x₁ hasMana isInHand , snd)) = willWin nonZero {!   !}
 -- more-health-is-good .brigyeetz s (willWin isAliv (aCastWalker2 x x₁ hasMana isInHand , snd)) = {!   !}
 -- more-health-is-good .ozzie     s (willWin isAliv (aCastElixir x x₁ hasMana isInHand , snd)) = {!   !}
 -- more-health-is-good p          s (willWin isAliv (aActivateWalker1 hasMana canActivate , snd)) = {!   !}

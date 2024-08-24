@@ -4,7 +4,7 @@ open import Function
 open import Data.Nat
 open import Data.Nat.Properties
 open import Data.Fin using (Fin ; #_)
-open import Data.Unit.Base hiding (_≤_)
+open import Data.Unit.Base
 open import Data.Empty
 open import Data.Bool hiding (_≤_)
 open import Data.Product
@@ -751,22 +751,22 @@ big-walker-game-wins s@record
         ; walker1State = onBattlefield record { isTapped = false ; summoningSickness = false ; nCounters = size1 }
         ; card2State = onBattlefield record { isTapped = false ; summoningSickness = false ; nCounters = size2 }
         }
-    } (big1 , big2 , refl) = willWin tt
+    } (big1 , big2 , refl) = willWin nonZero
         ((aDeclareAttackers refl refl (record { thoptersAttack = 0 , z≤n ; walker1Attack = just tt ; walker2Attack = just tt })) , λ where
             -- (aDeclareBlockers _attck refl refl record { thopter-thopter-blocks = th-th-bl ; thopter-block-walker1 = tbw1 ; thopter-block-walker2 = tbw2 ; total-thopters = total-thopters ; walker1Block = walker1Block ; walker2Block = walker2Block }) → {! tbw1 total-thopters  !}
             (aDeclareBlockers _attck refl refl record { thopter-block-walker1 = just x ; total-thopters = () })
             (aDeclareBlockers _attck refl refl record { thopter-block-walker1 = nothing ; thopter-block-walker2 = just x ; total-thopters = () })
             (aDeclareBlockers _attck refl refl record { thopter-thopter-blocks = suc _ , _ ; thopter-block-walker1 = nothing ; thopter-block-walker2 = nothing ; total-thopters = () })
             (aDeclareBlockers _attck refl refl record { thopter-thopter-blocks = 0 , _ ; thopter-block-walker1 = nothing  ; thopter-block-walker2 = nothing ; walker1Block = w1b ; walker2Block = just (_ , ()) })
-            (aDeclareBlockers _attck refl refl record { thopter-thopter-blocks = 0 , _ ; thopter-block-walker1 = nothing  ; thopter-block-walker2 = nothing ; walker1Block = nothing ; walker2Block = nothing }) → willWin tt (aDoNothing , (λ where
+            (aDeclareBlockers _attck refl refl record { thopter-thopter-blocks = 0 , _ ; thopter-block-walker1 = nothing  ; thopter-block-walker2 = nothing ; walker1Block = nothing ; walker2Block = nothing }) → willWin nonZero (aDoNothing , (λ where
                 aDoNothing → hasWon (m≤n⇒m∸n≡0 {health} {size1 + size2} (≤-trans big1 (m≤m+n size1 size2)))))
-            (aDeclareBlockers _attck refl refl record { thopter-thopter-blocks = 0 , _ ; thopter-block-walker1 = nothing  ; thopter-block-walker2 = nothing ; walker1Block = just (blockWalker1 tgt , pf) ; walker2Block = nothing }) → willWin tt (aDoNothing , λ where
+            (aDeclareBlockers _attck refl refl record { thopter-thopter-blocks = 0 , _ ; thopter-block-walker1 = nothing  ; thopter-block-walker2 = nothing ; walker1Block = just (blockWalker1 tgt , pf) ; walker2Block = nothing }) → willWin nonZero (aDoNothing , λ where
                 aDoNothing → hasWon (m≤n⇒m∸n≡0 big2))
-            (aDeclareBlockers _attck refl refl record { thopter-thopter-blocks = 0 , _ ; thopter-block-walker1 = nothing  ; thopter-block-walker2 = nothing ; walker1Block = just (blockWalker2 tgt , pf) ; walker2Block = nothing }) → willWin tt (aDoNothing , λ where
+            (aDeclareBlockers _attck refl refl record { thopter-thopter-blocks = 0 , _ ; thopter-block-walker1 = nothing  ; thopter-block-walker2 = nothing ; walker1Block = just (blockWalker2 tgt , pf) ; walker2Block = nothing }) → willWin nonZero (aDoNothing , λ where
                 aDoNothing → hasWon (Relation.Binary.PropositionalEquality.trans (cong (health ∸_) (+-identityʳ size1)) (m≤n⇒m∸n≡0 {health} {size1} big1)))
             -- (aDeclareBlockers _attck refl refl record { thopter-thopter-blocks = thopter-thopter-blocks ; thopter-block-walker1 = thopter-block-walker1 ; thopter-block-walker2 = thopter-block-walker2 ; total-thopters = total-thopters ; walker1Block = walker1Block ; walker2Block = walker2Block }) → {! thopter-thopter-blocks thopter-block-walker1 thopter-block-walker2 total-thopters walker1Block walker2Block  !}
-            aDoNothing → willWin tt $ aDoNothing , λ where
-                aDoNothing → willWin tt $ aDoNothing , λ where
+            aDoNothing → willWin nonZero $ aDoNothing , λ where
+                aDoNothing → willWin nonZero $ aDoNothing , λ where
                     aDoNothing → hasWon (m≤n⇒m∸n≡0 {health} {size1 + size2} (≤-trans big1 (m≤m+n size1 size2))))
 
 -- TODO: Figure out some abstractions to make it less tedious
