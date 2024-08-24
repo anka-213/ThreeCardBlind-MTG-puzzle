@@ -13,6 +13,14 @@ walkerInitialState = WalkerState False True 1
 
 data ElixirState = MkElixirState{}
 
+data Proxy a = MkProxy{}
+
+class StateForCard st where
+    correspondingCard :: Proxy st -> Card
+
+instance StateForCard WalkerState where
+    correspondingCard x = Walker
+
 data CardPosition c = InHand
                     | InGraveyard
                     | InDeck
@@ -41,8 +49,16 @@ data PlayerState card2StateType = PlayerState{healthTotal ::
                                               card2State :: CardPosition card2StateType,
                                               deck :: [Card]}
 
-isUntappedWalker :: Card -> CardPosition WalkerState -> Bool
-isUntappedWalker Walker (OnBattlefield (WalkerState False _ _))
-  = True
-isUntappedWalker c _ = False
+data AnyCardState f = WalkerCard (f WalkerState)
+                    | ElixirCard (f ElixirState)
+
+isUntappedWalker :: AnyCardState CardPosition -> Bool
+isUntappedWalker
+  (WalkerCard (OnBattlefield (WalkerState False _ _))) = True
+isUntappedWalker _ = False
+
+isTappableWalker :: AnyCardState CardPosition -> Bool
+isTappableWalker
+  (WalkerCard (OnBattlefield (WalkerState False False _))) = True
+isTappableWalker _ = False
 

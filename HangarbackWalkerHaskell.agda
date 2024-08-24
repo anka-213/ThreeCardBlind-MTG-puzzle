@@ -78,6 +78,26 @@ CardState Elixir = ElixirState
 
 -- {-# COMPILE AGDA2HS CardState #-}
 
+record Proxy (a : Set) : Set where
+    constructor MkProxy
+{-# COMPILE AGDA2HS Proxy #-}
+
+record StateForCard (st : Set) : Set₁ where
+    field
+        correspondingCard : {Proxy st} → Card
+        -- correspondingCard : Card
+        @0 pf-State : CardState (correspondingCard) ≡ st
+open StateForCard public
+
+{-# COMPILE AGDA2HS StateForCard class #-}
+
+instance
+    iWalkerCard : StateForCard WalkerState
+    iWalkerCard .correspondingCard = Walker
+    iWalkerCard .pf-State = refl
+
+{-# COMPILE AGDA2HS iWalkerCard #-}
+
 -- c = CardState c = WalkerState | ElixirState
 data CardPosition (c : Set) : Set where
     InHand : CardPosition c
@@ -99,7 +119,6 @@ data Player : Set where
 opponentOf : Player → Player
 opponentOf Ozzie = Brigyeetz
 opponentOf Brigyeetz = Ozzie
--- {-# INJECTIVE_FOR_INFERENCE opponentOf #-}
 {-# COMPILE AGDA2HS opponentOf #-}
 
 record ThopterState : Set where
@@ -135,19 +154,26 @@ open PlayerState public
 
 {-# COMPILE AGDA2HS PlayerState #-}
 
+data AnyCardState (f : Set → Set) : Set where
+    WalkerCard : f WalkerState → AnyCardState f
+    ElixirCard : f ElixirState → AnyCardState f
+{-# COMPILE AGDA2HS AnyCardState #-}
 
-isUntappedWalker : ∀ {c : Card} → CardPosition WalkerState → Bool
-isUntappedWalker {Walker} (OnBattlefield record { isTapped = false }) = true
+-- isUntappedWalker : ∀ {cardType : Set} {{stfc : StateForCard cardType}} → CardPosition cardType → Bool
+-- isUntappedWalker {ct} ⦃ record { correspondingCard = Walker} ⦄ (OnBattlefield record { isTapped = false })= {!   !}
+-- isUntappedWalker {ct} ⦃ record { correspondingCard = Elixir} ⦄ = {!   !}
+isUntappedWalker : AnyCardState CardPosition → Bool
+isUntappedWalker (WalkerCard (OnBattlefield record { isTapped = false })) = true
 isUntappedWalker _ = false
 
 {-# COMPILE AGDA2HS isUntappedWalker #-}
 
-isTappableWalker : ∀ {c} → CardPosition WalkerState → Bool
-isTappableWalker {Walker} (onBattlefield record { isTapped = false ; summoningSickness = false }) = true
+
+isTappableWalker : AnyCardState CardPosition → Bool
+isTappableWalker (WalkerCard (OnBattlefield record { isTapped = false ; summoningSickness = false })) = true
 isTappableWalker _ = false
 {-# COMPILE AGDA2HS isTappableWalker #-}
 
-{-
 record AttackContext : Set where
     pattern
     field
@@ -155,11 +181,16 @@ record AttackContext : Set where
         availableWalker1 : Bool
         availableWalker2 : Bool
 
-attackContextFor : ∀ {p} → PlayerState p → AttackContext
-attackContextFor ps = record
+attackContextFor : AnyCardState PlayerState → AttackContext
+attackContextFor (WalkerCard ps) = record
     { availableThopters = untappedUnsickThopters ps
-    ; availableWalker1 = isTappableWalker (walker1State ps)
-    ; availableWalker2 = isTappableWalker (card2State ps)
+    ; availableWalker1 = isTappableWalker (WalkerCard (walker1State ps))
+    ; availableWalker2 = isTappableWalker (WalkerCard (card2State ps))
+    }
+attackContextFor (ElixirCard ps) = record
+    { availableThopters = untappedUnsickThopters ps
+    ; availableWalker1 = isTappableWalker (WalkerCard (walker1State ps))
+    ; availableWalker2 = isTappableWalker (ElixirCard (card2State ps))
     }
 
 record BlockerContext : Set where
@@ -169,11 +200,16 @@ record BlockerContext : Set where
         availableWalker1 : Bool
         availableWalker2 : Bool
 
-blockerContextFor : ∀ {p} → PlayerState p → BlockerContext
-blockerContextFor ps = record
+blockerContextFor : AnyCardState PlayerState → BlockerContext
+blockerContextFor (WalkerCard ps) = record
     { availableThopters = untappedUnsickThopters ps + summoningSickThopters ps
-    ; availableWalker1 = isUntappedWalker (walker1State ps)
-    ; availableWalker2 = isUntappedWalker (card2State ps)
+    ; availableWalker1 = isUntappedWalker (WalkerCard (walker1State ps))
+    ; availableWalker2 = isUntappedWalker (WalkerCard (card2State ps))
+    }
+blockerContextFor (ElixirCard ps) = record
+    { availableThopters = untappedUnsickThopters ps + summoningSickThopters ps
+    ; availableWalker1 = isUntappedWalker (WalkerCard (walker1State ps))
+    ; availableWalker2 = isUntappedWalker (ElixirCard (card2State ps))
     }
 
 -- TODO: make this depend on the rest of the state
@@ -235,6 +271,7 @@ module _ (ac : AttackContext) where
 
     -}
 
+{-
     noBlockers : ∀ a bc → BlockerInfo a bc
     noBlockers a bc = record
         { thopter-thopter-blocks = 0 , z≤n
