@@ -81,3 +81,12 @@ data CombatStep = CombatStart
                 | DeclaredAttackers AttackerInfo
                 | DeclaredBlockers AttackerInfo BlockerInfo
 
+data Phase = PreCombatMain
+           | Combat CombatStep
+           | PostCombatMain
+
+data GameState = GameState{phase :: Phase, activePlayer :: Player,
+                           ozzieState :: PlayerState ElixirState,
+                           brigyeetzState :: PlayerState WalkerState,
+                           lastPlayerPassed :: Bool}
+

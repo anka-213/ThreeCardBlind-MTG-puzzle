@@ -154,22 +154,22 @@ open PlayerState public
 
 {-# COMPILE AGDA2HS PlayerState #-}
 
-data AnyCardState (f : Set → Set) : Set where
-    WalkerCard : f WalkerState → AnyCardState f
-    ElixirCard : f ElixirState → AnyCardState f
+data AnyCardState (f : Set → Set) : (@0 c : Card) → Set where
+    WalkerCard : f WalkerState → AnyCardState f Walker
+    ElixirCard : f ElixirState → AnyCardState f Elixir
 {-# COMPILE AGDA2HS AnyCardState #-}
 
 -- isUntappedWalker : ∀ {cardType : Set} {{stfc : StateForCard cardType}} → CardPosition cardType → Bool
 -- isUntappedWalker {ct} ⦃ record { correspondingCard = Walker} ⦄ (OnBattlefield record { isTapped = false })= {!   !}
 -- isUntappedWalker {ct} ⦃ record { correspondingCard = Elixir} ⦄ = {!   !}
-isUntappedWalker : AnyCardState CardPosition → Bool
+isUntappedWalker : ∀ {@0 c} → AnyCardState CardPosition c → Bool
 isUntappedWalker (WalkerCard (OnBattlefield record { isTapped = false })) = true
 isUntappedWalker _ = false
 
 {-# COMPILE AGDA2HS isUntappedWalker #-}
 
 
-isTappableWalker : AnyCardState CardPosition → Bool
+isTappableWalker : ∀ {@0 c} → AnyCardState CardPosition c → Bool
 isTappableWalker (WalkerCard (OnBattlefield record { isTapped = false ; summoningSickness = false })) = true
 isTappableWalker _ = false
 {-# COMPILE AGDA2HS isTappableWalker #-}
@@ -181,7 +181,7 @@ record AttackContext : Set where
         availableWalker1 : Bool
         availableWalker2 : Bool
 
-attackContextFor : AnyCardState PlayerState → AttackContext
+attackContextFor : ∀ {@0 c} → AnyCardState PlayerState c → AttackContext
 attackContextFor (WalkerCard ps) = record
     { availableThopters = untappedUnsickThopters ps
     ; availableWalker1 = isTappableWalker (WalkerCard (walker1State ps))
@@ -193,6 +193,7 @@ attackContextFor (ElixirCard ps) = record
     ; availableWalker2 = isTappableWalker (ElixirCard (card2State ps))
     }
 
+
 record BlockerContext : Set where
     pattern
     field
@@ -200,7 +201,7 @@ record BlockerContext : Set where
         availableWalker1 : Bool
         availableWalker2 : Bool
 
-blockerContextFor : AnyCardState PlayerState → BlockerContext
+blockerContextFor : ∀ {c} → AnyCardState PlayerState c → BlockerContext
 blockerContextFor (WalkerCard ps) = record
     { availableThopters = untappedUnsickThopters ps + summoningSickThopters ps
     ; availableWalker1 = isUntappedWalker (WalkerCard (walker1State ps))
@@ -341,6 +342,7 @@ record GameState : Set where
     opponentState : PlayerStateFor opponent
     opponentState = stateOfPlayer opponent
 
+open GameState public
 {-# COMPILE AGDA2HS GameState #-}
 {-
 -- TODO: Maybe add priority field to game state to tell who can do an action
@@ -868,5 +870,7 @@ big-Walker-game-wins s@record
 
 -- Goal: Prove isDraw or losingGame or winningGame for both initial games
 -- Method: Find an invariant that holds that can be used to prove that any game with this invariant will be a win/loss for some player
+
+-- -}
 
 -- -}
