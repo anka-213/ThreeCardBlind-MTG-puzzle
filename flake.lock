@@ -56,10 +56,12 @@
       "inputs": {
         "agda2hs": "agda2hs",
         "flake-utils": [
-          "agda2hs"
+          "agda2hs",
+          "flake-utils"
         ],
         "nixpkgs": [
-          "agda2hs"
+          "agda2hs",
+          "nixpkgs"
         ]
       }
     },
