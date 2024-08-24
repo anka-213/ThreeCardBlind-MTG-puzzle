@@ -271,8 +271,27 @@ more-health-is-good-o s (willWin isAliv (aDeclareAttackers inCombat isActive@ref
 more-health-is-good-o s@record{activePlayer = brigyeetz} (willWin isAliv (aDeclareBlockers atcks inCombat2 isOpponent@refl blcks , snd)) = willWin tt (aDeclareBlockers atcks inCombat2 isOpponent blcks    , {! more-opponent-health-is-bad-b _ snd  !})
 more-health-is-good-o s (willWin isAliv (aDoNothing                                                   , snd)) = willWin tt ({! aDoNothing!}                                               , {! more-opponent-health-is-bad-b _ snd  !})
 
-more-health-is-good : ∀ p (s : GameState) → winningGame p s → winningGame p (mapPlayer p s λ sp → record sp { healthTotal = suc (healthTotal sp)})
-more-health-is-good = {!   !}
+-- IDEA: Use lenses (s -> (a × a → s)) to model modification.
+-- Issue: Doesnt make chains definitionally equal still
+-- Solution: Use rewrite rules to implement definitional equality
+
+-- Alternative: Macro for pattern matching
+
+more-health-is-good : ∀ p n (s : GameState) → winningGame p s → winningGame p (mapHealth p s (_+ n))
+more-opponent-health-is-bad : ∀ p n (s : GameState) → losingGame p s → losingGame p (mapHealth (opponentOf p) s (_+ n))
+more-health-is-good ozzie n s (hasWon pf) = hasWon pf
+more-health-is-good brigyeetz n s (hasWon pf) = hasWon pf
+more-health-is-good p@ozzie n s (willWin lives (act , oppLoses)) = willWin {!   !} (health-map-action p p s n act , (case health-ineq-preserved p p s n act of λ where
+    (m , snd) → subst (losingGame brigyeetz) (sym snd) (more-opponent-health-is-bad brigyeetz m (performAction s ozzie act) oppLoses)))
+    -- (m , snd) → {! subst (losingGame ozzie) (sym snd) !}))
+more-health-is-good p n s (willWin lives (act , oppLoses)) = willWin {!   !} (health-map-action p p s n act , (case health-ineq-preserved p p s n act of λ where
+    (m , snd) → {!   !}))
+
+-- more-health-is-good brigyeetz n s
+more-opponent-health-is-bad p@ozzie n s lost act = {!  (health-map-action ? ? s n ) !}
+more-opponent-health-is-bad p@brigyeetz n s lost act = {!   !}
+
+-- need inverse of health-map-action
 
 -- more-health-is-good ozzie      s (willWin isAliv (aCastWalker1 x x₁ hasMana isInHand , snd)) = willWin tt {!   !}
 -- more-health-is-good brigyeetz  s (willWin isAliv (aCastWalker1 x x₁ hasMana isInHand , snd)) = willWin tt {!   !}
