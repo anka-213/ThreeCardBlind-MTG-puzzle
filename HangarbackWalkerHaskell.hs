@@ -62,3 +62,22 @@ isTappableWalker
   (WalkerCard (OnBattlefield (WalkerState False False _))) = True
 isTappableWalker _ = False
 
+data AttackerInfo = AttackerInfo{thoptersAttack :: Natural,
+                                 walker1Attack :: Bool, walker2Attack :: Bool}
+
+data BlockTarget = BlockThopter
+                 | BlockWalker1
+                 | BlockWalker2
+
+data BlockerInfo = BlockerInfo{thopter_thopter_blocks :: Natural,
+                               thopter_block_walker1 :: Bool, thopter_block_walker2 :: Bool,
+                               walker1Block :: Maybe BlockTarget,
+                               walker2Block :: Maybe BlockTarget}
+
+noBlockers :: BlockerInfo
+noBlockers = BlockerInfo 0 False False Nothing Nothing
+
+data CombatStep = CombatStart
+                | DeclaredAttackers AttackerInfo
+                | DeclaredBlockers AttackerInfo BlockerInfo
+

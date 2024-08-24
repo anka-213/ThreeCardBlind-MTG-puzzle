@@ -213,52 +213,63 @@ blockerContextFor (ElixirCard ps) = record
     }
 
 -- TODO: make this depend on the rest of the state
-module _ (ac : AttackContext) where
-    open AttackContext ac
+module _ (@0 ac : AttackContext) where
+    open AttackContext
     record AttackerInfo : Set where
         pattern
         field
-            thoptersAttack : Σ[ n ∈ ℕ ] n ≤ availableThopters
-            walker1Attack : Maybe (T availableWalker1)
-            walker2Attack : Maybe (T availableWalker2)
+            thoptersAttack : ℕ
+            @0 thoptersAttackValid : thoptersAttack ≤ availableThopters ac
+            walker1Attack : Bool
+            @0 walker1AttackValid : if walker1Attack then (T (availableWalker1 ac)) else ⊤
+            walker2Attack : Bool
+            @0 walker2AttackValid : if walker2Attack then (T (availableWalker2 ac)) else ⊤
         nThopters : ℕ
-        nThopters = thoptersAttack .proj₁
-        isWalker1Attack = is-just walker1Attack
-        isWalker2Attack = is-just walker2Attack
+        nThopters = thoptersAttack
+        -- isWalker1Attack : Bool
+        -- isWalker1Attack = is-just walker1Attack
+        -- isWalker2Attack = is-just walker2Attack
 
-    open AttackerInfo
+    open AttackerInfo public
+    {-# COMPILE AGDA2HS AttackerInfo #-}
+
 
     -- TODO: fix blockers
     -- TODO: Declare blocker order
 
     -- TODO: Limit based on attackers
-    data BlockTarget (a : AttackerInfo) : Set where
-        blockThopter : NonZero (nThopters a) → BlockTarget a
-        blockWalker1 : Is-just (walker1Attack a) → BlockTarget a
-        blockWalker2 : Is-just (walker2Attack a) → BlockTarget a
+    data BlockTarget (@0 a : AttackerInfo) : Set where
+        BlockThopter : @0 NonZero (nThopters a) → BlockTarget a
+        BlockWalker1 : @0 T (walker1Attack a) → BlockTarget a
+        BlockWalker2 : @0 T (walker2Attack a) → BlockTarget a
         -- noBlock : BlockTarget
+    {-# COMPILE AGDA2HS BlockTarget #-}
 
     maybe2nat : {A : Set} → Maybe A → ℕ
     maybe2nat (just _) = 1
     maybe2nat nothing = 0
 
-    record BlockerInfo (a : AttackerInfo) (bc : BlockerContext) : Set where
+    bool2nat : Bool → ℕ
+    bool2nat true = 1
+    bool2nat false = 0
+
+    record BlockerInfo (@0 a : AttackerInfo) (@0 bc : BlockerContext) : Set where
         pattern
         field
-            thopter-thopter-blocks : Σ[ n ∈ ℕ ] n ≤ nThopters a
-            thopter-block-walker1 : Maybe (Is-just (walker1Attack a))
-            thopter-block-walker2 : Maybe (Is-just (walker2Attack a))
-            total-thopters : maybe2nat thopter-block-walker1 + maybe2nat thopter-block-walker2 + proj₁ thopter-thopter-blocks ≤ BlockerContext.availableThopters bc
-            walker1Block : Maybe (BlockTarget a × T (BlockerContext.availableWalker1 bc))
-            walker2Block : Maybe (BlockTarget a × T (BlockerContext.availableWalker2 bc))
+            thopter₋thopter₋blocks : ℕ
+            @0 thopter₋thopter₋blocks₋valid : thopter₋thopter₋blocks ≤ nThopters a
+            thopter₋block₋walker1 : Bool
+            @0 thopter₋block₋walker1₋valid : if thopter₋block₋walker1 then T (walker1Attack a) else ⊤
+            thopter₋block₋walker2 : Bool
+            @0 thopter₋block₋walker2₋valid : if thopter₋block₋walker2 then T (walker2Attack a) else ⊤
+            @0 total₋thopters : bool2nat thopter₋block₋walker1 + bool2nat thopter₋block₋walker2 + thopter₋thopter₋blocks ≤ BlockerContext.availableThopters bc
+            walker1Block : Maybe (BlockTarget a)
+            @0 walker1Block₋valid : if is-just walker1Block then T (BlockerContext.availableWalker1 bc) else ⊤
+            walker2Block : Maybe (BlockTarget a)
+            @0 walker2Block₋valid : if is-just walker2Block then T (BlockerContext.availableWalker2 bc) else ⊤
 
-    -- record BlockersValid (pps : AttackContext) (a : AttackerInfo pps) (b : BlockerInfo pps a) : Set where
-    --     field
-    --         walker1Valid : if isBlocking (BlockerInfo.walker1Block b) then T (isUntappedWalker (walker1State opponentState)) else ⊤
-    --         walker2Valid : if isBlocking (BlockerInfo.walker2Block b) then T (isUntappedWalker (card2State opponentState)) else ⊤
-    --         -- valid target
-    --         -- not too many thopters
-    --         -- TODO implement this
+    open BlockerInfo public
+    {-# COMPILE AGDA2HS BlockerInfo #-}
 
     {-
     Possible blocks:
@@ -271,29 +282,41 @@ module _ (ac : AttackContext) where
 
     -}
 
-{-
-    noBlockers : ∀ a bc → BlockerInfo a bc
+    Nothing : ∀ {A : Set} → Maybe A
+    Nothing = nothing
+
+    noBlockers : ∀ (@0 a) (@0 bc) → BlockerInfo a bc
     noBlockers a bc = record
-        { thopter-thopter-blocks = 0 , z≤n
-        ; thopter-block-walker1 = nothing
-        ; thopter-block-walker2 = nothing
-        ; total-thopters = z≤n
-        ; walker1Block = nothing
-        ; walker2Block = nothing
+        { thopter₋thopter₋blocks = 0
+        ; thopter₋thopter₋blocks₋valid = z≤n
+        ; thopter₋block₋walker1 = false
+        ; thopter₋block₋walker1₋valid = tt
+        ; thopter₋block₋walker2 = false
+        ; thopter₋block₋walker2₋valid = tt
+        ; total₋thopters = z≤n
+        ; walker1Block = Nothing
+        ; walker1Block₋valid = tt
+        ; walker2Block = Nothing
+        ; walker2Block₋valid = tt
         }
+    {-# COMPILE AGDA2HS noBlockers #-}
 
 
 data CombatStep : Set where
     CombatStart : CombatStep
-    DeclaredAttackers : (ac : AttackContext) → AttackerInfo ac → CombatStep
-    DeclaredBlockers : (ac : AttackContext) → (a : AttackerInfo ac) → {bc : BlockerContext} → BlockerInfo ac a bc → CombatStep
+    DeclaredAttackers : (@0 ac : AttackContext) → AttackerInfo ac → CombatStep
+    DeclaredBlockers : (@0 ac : AttackContext) → (a : AttackerInfo ac) → {@0 bc : BlockerContext} → BlockerInfo ac a bc → CombatStep
 
+{-# COMPILE AGDA2HS CombatStep #-}
 
 data Phase : Set where
-    preCombatMain : Phase
-    combat : CombatStep → Phase
-    postCombatMain : Phase
+    PreCombatMain : Phase
+    Combat : CombatStep → Phase
+    PostCombatMain : Phase
+{-# COMPILE AGDA2HS Phase #-}
 
+PlayerStateFor : Player → Set
+PlayerStateFor p = PlayerState (CardState (card2ForPlayer p))
 
 record GameState : Set where
     pattern
@@ -301,21 +324,25 @@ record GameState : Set where
     field
         phase : Phase
         activePlayer : Player
-        ozzieState : PlayerState Ozzie
-        brigyeetzState : PlayerState Brigyeetz
+        ozzieState : PlayerState ElixirState
+        brigyeetzState : PlayerState WalkerState
         lastPlayerPassed : Bool
+
     opponent : Player
     opponent = opponentOf activePlayer
 
-    stateOfPlayer : (p : Player) → PlayerState p
+
+    stateOfPlayer : (p : Player) → PlayerStateFor p
     stateOfPlayer Ozzie = ozzieState
     stateOfPlayer Brigyeetz = brigyeetzState
 
-    activePlayerState : PlayerState activePlayer
+    activePlayerState : PlayerStateFor activePlayer
     activePlayerState = stateOfPlayer activePlayer
-    opponentState : PlayerState opponent
+    opponentState : PlayerStateFor opponent
     opponentState = stateOfPlayer opponent
 
+{-# COMPILE AGDA2HS GameState #-}
+{-
 -- TODO: Maybe add priority field to game state to tell who can do an action
 
 module _ (s : GameState) where
