@@ -301,9 +301,18 @@ more-opponent-health-is-bad p@ozzie n s lost act = case health-ineq-preserved br
     baseAct : Action s ozzie
     baseAct = subst (λ s → Action s ozzie) (cong (setHealth brigyeetz s) (m+n∸n≡m _ n))  (health-map-action brigyeetz p (mapHealth brigyeetz s (_+ n)) (_∸ n) act)
     baseActEq : health-map-action brigyeetz ozzie s (_+ n) baseAct ≡ act
-    baseActEq = {!   !}
+    baseActEq = {! nest-health-map-action n p s act  !}
 
 more-opponent-health-is-bad p@brigyeetz n s lost act = {!   !}
+
+nest-health-map-action : ∀ n s (act : Action (mapHealth brigyeetz s (_+ n)) ozzie)
+    → health-map-action brigyeetz ozzie s (_+ n)
+    (subst (λ s → Action s ozzie)
+        (cong (setHealth brigyeetz s) (m+n∸n≡m _ n))
+        (health-map-action brigyeetz ozzie (mapHealth brigyeetz s (_+ n)) (_∸ n) act)) ≡ act
+nest-health-map-action zero s@record{brigyeetzState = bS@record{healthTotal = 0}} act = {! refl  !}
+nest-health-map-action zero s@record{brigyeetzState = bS@record{healthTotal = suc ht}} act = {! ht  !}
+nest-health-map-action (suc n) s act = {!   !}
 
 -- more-opponent-health-is-bad p@ozzie n s lost act = {!  subst (λ n → Action (setHealth ozzie s n) ozzie) ? (health-map-action p p (mapHealth ozzie s (_+ n)) (_∸ n)  act) !}
 -- need inverse of health-map-action
