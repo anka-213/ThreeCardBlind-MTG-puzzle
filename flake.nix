@@ -11,10 +11,11 @@
         pkgs = import nixpkgs { inherit system; };
 
         agda2hs-mine = agda2hs.outputs.lib.${system}.withPackages [ pkgs.agdaPackages.standard-library ];
+        agda-mine = pkgs.agda.withPackages [ pkgs.agdaPackages.standard-library ];
       in
       {
         packages = {
-          inherit agda2hs-mine;
+          inherit agda2hs-mine agda-mine;
           default = agda2hs-mine;
         };
       });
