@@ -46,8 +46,8 @@ subst-health : ∀ (P : GameState → Set) p (s : GameState) {m} → (GameState.
 subst-health P ozzie s eq Ps = subst (λ a → P (mapHealth ozzie s (λ hlth → a))) eq Ps
 subst-health P brigyeetz s eq Ps = subst (λ a → P (mapHealth brigyeetz s (λ hlth → a))) eq Ps
 
-mapMana : ∀ p1 p2 s {n} k (hasMana : HasMana (GameState.stateOfPlayer s p2) k)
-                                   → HasMana (GameState.stateOfPlayer (mapHealth p1 s (_+ n)) p2) k
+mapMana : ∀ p1 p2 s {f} k (hasMana : HasMana (GameState.stateOfPlayer s p2) k)
+                                   → HasMana (GameState.stateOfPlayer (mapHealth p1 s f) p2) k
 mapMana ozzie     brigyeetz s k hM = hM
 mapMana brigyeetz ozzie     s k hM = hM
 mapMana ozzie     ozzie     s 1 hM = hM
@@ -67,25 +67,25 @@ health-card2-independent ozzie brigyeetz s = refl
 health-card2-independent brigyeetz ozzie s = refl
 health-card2-independent brigyeetz brigyeetz s = refl
 
-mapInHand : ∀ p1 p2 s {n} (isInHand : walker1State (GameState.stateOfPlayer s p2) ≡ inHand)
-                                    → walker1State (GameState.stateOfPlayer (mapHealth p1 s (_+ n)) p2) ≡ inHand
+mapInHand : ∀ p1 p2 s {f} (isInHand : walker1State (GameState.stateOfPlayer s p2) ≡ inHand)
+                                    → walker1State (GameState.stateOfPlayer (mapHealth p1 s f) p2) ≡ inHand
 mapInHand p1 p2 s isInHand = subst (_≡ inHand) (health-card1-independent p1 p2 s) isInHand
 
-mapInHand2 : ∀ p1 p2 s {n} (isInHand : card2State (GameState.stateOfPlayer s p2) ≡ inHand)
-                                     → card2State (GameState.stateOfPlayer (mapHealth p1 s (_+ n)) p2) ≡ inHand
+mapInHand2 : ∀ p1 p2 s {f} (isInHand : card2State (GameState.stateOfPlayer s p2) ≡ inHand)
+                                     → card2State (GameState.stateOfPlayer (mapHealth p1 s f) p2) ≡ inHand
 mapInHand2 p1 p2 s isInHand = subst (_≡ inHand) (health-card2-independent p1 p2 s) isInHand
 
-mapAttackers : ∀ p1 s {n}
+mapAttackers : ∀ p1 s {f}
     (atcks : AttackerInfo (attackContextFor (GameState.activePlayerState s))) →
-    AttackerInfo (attackContextFor (GameState.activePlayerState (mapHealth p1 s (_+ n))))
+    AttackerInfo (attackContextFor (GameState.activePlayerState (mapHealth p1 s f)))
 mapAttackers ozzie     s@record{activePlayer = ozzie    } atcks = atcks
 mapAttackers ozzie     s@record{activePlayer = brigyeetz} atcks = atcks
 mapAttackers brigyeetz s@record{activePlayer = ozzie    } atcks = atcks
 mapAttackers brigyeetz s@record{activePlayer = brigyeetz} atcks = atcks
 
-mapBlockers : ∀ p1 s {n} {pps} {atcks : AttackerInfo pps}
+mapBlockers : ∀ p1 s {f} {pps} {atcks : AttackerInfo pps}
     (blcks : BlockerInfo pps atcks (blockerContextFor (GameState.opponentState s)))
-           → BlockerInfo pps atcks (blockerContextFor (GameState.opponentState (mapHealth p1 s (_+ n))))
+           → BlockerInfo pps atcks (blockerContextFor (GameState.opponentState (mapHealth p1 s f)))
 mapBlockers ozzie     s@record{activePlayer = ozzie    } blckrs = blckrs
 mapBlockers ozzie     s@record{activePlayer = brigyeetz} blckrs = blckrs
 mapBlockers brigyeetz s@record{activePlayer = ozzie    } blckrs = blckrs
@@ -96,7 +96,7 @@ mapBlockers brigyeetz s@record{activePlayer = brigyeetz} blckrs = blckrs
 -- That way we automatically dismiss non-active player actions and can skip that proof
 -- Downside: how do we implement taking turns to do things in isWinningGame?
 
-health-map-action : ∀ (p1 p2 : Player) (s : GameState) (n : ℕ) (act : Action s p2) → Action (mapHealth p1 s (_+ n)) p2
+health-map-action : ∀ (p1 p2 : Player) (s : GameState) (f : ℕ → ℕ) (act : Action s p2) → Action (mapHealth p1 s f) p2
 health-map-action p1 p2         s n (aCastWalker1 isActive inMain hasMana isInHand    ) = aCastWalker1 isActive inMain (mapMana p1 p2 s 2 hasMana) (mapInHand  p1 p2 s isInHand)
 health-map-action p1 p2         s n (aCastWalker2 isActive inMain hasMana isInHand    ) = aCastWalker2 isActive inMain (mapMana p1 p2 s 2 hasMana) (mapInHand2 p1 p2 s isInHand)
 health-map-action p1 p2         s n (aCastElixir isActive inMain hasMana isInHand     ) = aCastElixir  isActive inMain (mapMana p1 p2 s 1 hasMana) (mapInHand2 p1 p2 s isInHand)
@@ -106,32 +106,34 @@ health-map-action p1 p2         s n (aActivateElixir hasMana canActivate        
 health-map-action p1 p2         s n (aDeclareAttackers inCombat isActive atcks        ) = aDeclareAttackers inCombat isActive (mapAttackers p1 s atcks)
 health-map-action p1 p2         s n (aDeclareBlockers atcks inCombat2 isOpponent blcks) = aDeclareBlockers atcks inCombat2 isOpponent (mapBlockers p1 s blcks)
 health-map-action p1 p2         s n (aDoNothing                                       ) = aDoNothing
--- health-map-action ozzie ozzie      s n (aCastWalker1 isActive inMain hasMana isInHand         ) = (aCastWalker1 isActive inMain hasMana isInHand     )
--- health-map-action ozzie brigyeetz  s n (aCastWalker1 isActive inMain hasMana isInHand         ) = (aCastWalker1 isActive inMain hasMana isInHand     )
--- health-map-action ozzie .brigyeetz s n (aCastWalker2 isActive inMain hasMana isInHand         ) = (aCastWalker2 isActive inMain hasMana isInHand     )
--- health-map-action ozzie .ozzie     s n (aCastElixir isActive inMain hasMana isInHand          ) = (aCastElixir isActive inMain hasMana isInHand      )
--- health-map-action ozzie ozzie      s n (aActivateWalker1 hasMana canActivate                  ) = (aActivateWalker1 hasMana canActivate              )
--- health-map-action ozzie brigyeetz  s n (aActivateWalker1 hasMana canActivate                  ) = (aActivateWalker1 hasMana canActivate              )
--- health-map-action ozzie .brigyeetz s n (aActivateWalker2 hasMana canActivate                  ) = (aActivateWalker2 hasMana canActivate              )
--- health-map-action ozzie .ozzie     s n (aActivateElixir hasMana canActivate                   ) = (aActivateElixir hasMana canActivate               )
--- health-map-action ozzie ozzie      s n (aDeclareAttackers inCombat isActive@refl atcks        ) = (aDeclareAttackers inCombat isActive atcks         )
--- health-map-action ozzie brigyeetz  s n (aDeclareAttackers inCombat isActive@refl atcks        ) = (aDeclareAttackers inCombat isActive atcks         )
--- health-map-action ozzie ozzie      s n (aDeclareBlockers atcks inCombat2 isOpponent@refl blcks) = (aDeclareBlockers atcks inCombat2 isOpponent blcks )
--- health-map-action ozzie brigyeetz  s n (aDeclareBlockers atcks inCombat2 isOpponent@refl blcks) = (aDeclareBlockers atcks inCombat2 isOpponent blcks )
--- health-map-action ozzie p2         s n (aDoNothing                                            ) = (aDoNothing                                        )
--- health-map-action brigyeetz ozzie      s n (aCastWalker1 isActive inMain hasMana isInHand     ) = (aCastWalker1 isActive inMain hasMana isInHand     )
--- health-map-action brigyeetz brigyeetz  s n (aCastWalker1 isActive inMain hasMana isInHand     ) = (aCastWalker1 isActive inMain hasMana isInHand     )
--- health-map-action brigyeetz .brigyeetz s n (aCastWalker2 isActive inMain hasMana isInHand     ) = (aCastWalker2 isActive inMain hasMana isInHand     )
--- health-map-action brigyeetz .ozzie     s n (aCastElixir isActive inMain hasMana isInHand      ) = (aCastElixir isActive inMain hasMana isInHand      )
--- health-map-action brigyeetz ozzie      s n (aActivateWalker1 hasMana canActivate              ) = (aActivateWalker1 hasMana canActivate              )
--- health-map-action brigyeetz brigyeetz  s n (aActivateWalker1 hasMana canActivate              ) = (aActivateWalker1 hasMana canActivate              )
--- health-map-action brigyeetz .brigyeetz s n (aActivateWalker2 hasMana canActivate              ) = (aActivateWalker2 hasMana canActivate              )
--- health-map-action brigyeetz .ozzie     s n (aActivateElixir hasMana canActivate               ) = (aActivateElixir hasMana canActivate               )
--- health-map-action brigyeetz ozzie      s n (aDeclareAttackers inCombat isActive@refl atcks    ) = (aDeclareAttackers inCombat isActive atcks         )
--- health-map-action brigyeetz brigyeetz  s n (aDeclareAttackers inCombat isActive@refl atcks    ) = (aDeclareAttackers inCombat isActive atcks         )
+
+-- health-map-action : ∀ (p1 p2 : Player) (s : GameState) (n : ℕ) (act : Action s p2) → Action (mapHealth p1 s (_+ n)) p2
+-- health-map-action ozzie ozzie      s n (aCastWalker1 isActive inMain hasMana isInHand             ) = (aCastWalker1 isActive inMain hasMana isInHand     )
+-- health-map-action ozzie brigyeetz  s n (aCastWalker1 isActive inMain hasMana isInHand             ) = (aCastWalker1 isActive inMain hasMana isInHand     )
+-- health-map-action ozzie .brigyeetz s n (aCastWalker2 isActive inMain hasMana isInHand             ) = (aCastWalker2 isActive inMain hasMana isInHand     )
+-- health-map-action ozzie .ozzie     s n (aCastElixir isActive inMain hasMana isInHand              ) = (aCastElixir isActive inMain hasMana isInHand      )
+-- health-map-action ozzie ozzie      s n (aActivateWalker1 hasMana canActivate                      ) = (aActivateWalker1 hasMana canActivate              )
+-- health-map-action ozzie brigyeetz  s n (aActivateWalker1 hasMana canActivate                      ) = (aActivateWalker1 hasMana canActivate              )
+-- health-map-action ozzie .brigyeetz s n (aActivateWalker2 hasMana canActivate                      ) = (aActivateWalker2 hasMana canActivate              )
+-- health-map-action ozzie .ozzie     s n (aActivateElixir hasMana canActivate                       ) = (aActivateElixir hasMana canActivate               )
+-- health-map-action ozzie ozzie      s n (aDeclareAttackers inCombat isActive@refl atcks            ) = (aDeclareAttackers inCombat isActive atcks         )
+-- health-map-action ozzie brigyeetz  s n (aDeclareAttackers inCombat isActive@refl atcks            ) = (aDeclareAttackers inCombat isActive atcks         )
+-- health-map-action ozzie ozzie      s n (aDeclareBlockers atcks inCombat2 isOpponent@refl blcks    ) = (aDeclareBlockers atcks inCombat2 isOpponent blcks )
+-- health-map-action ozzie brigyeetz  s n (aDeclareBlockers atcks inCombat2 isOpponent@refl blcks    ) = (aDeclareBlockers atcks inCombat2 isOpponent blcks )
+-- health-map-action ozzie p2         s n (aDoNothing                                                ) = (aDoNothing                                        )
+-- health-map-action brigyeetz ozzie      s n (aCastWalker1 isActive inMain hasMana isInHand         ) = (aCastWalker1 isActive inMain hasMana isInHand     )
+-- health-map-action brigyeetz brigyeetz  s n (aCastWalker1 isActive inMain hasMana isInHand         ) = (aCastWalker1 isActive inMain hasMana isInHand     )
+-- health-map-action brigyeetz .brigyeetz s n (aCastWalker2 isActive inMain hasMana isInHand         ) = (aCastWalker2 isActive inMain hasMana isInHand     )
+-- health-map-action brigyeetz .ozzie     s n (aCastElixir isActive inMain hasMana isInHand          ) = (aCastElixir isActive inMain hasMana isInHand      )
+-- health-map-action brigyeetz ozzie      s n (aActivateWalker1 hasMana canActivate                  ) = (aActivateWalker1 hasMana canActivate              )
+-- health-map-action brigyeetz brigyeetz  s n (aActivateWalker1 hasMana canActivate                  ) = (aActivateWalker1 hasMana canActivate              )
+-- health-map-action brigyeetz .brigyeetz s n (aActivateWalker2 hasMana canActivate                  ) = (aActivateWalker2 hasMana canActivate              )
+-- health-map-action brigyeetz .ozzie     s n (aActivateElixir hasMana canActivate                   ) = (aActivateElixir hasMana canActivate               )
+-- health-map-action brigyeetz ozzie      s n (aDeclareAttackers inCombat isActive@refl atcks        ) = (aDeclareAttackers inCombat isActive atcks         )
+-- health-map-action brigyeetz brigyeetz  s n (aDeclareAttackers inCombat isActive@refl atcks        ) = (aDeclareAttackers inCombat isActive atcks         )
 -- health-map-action brigyeetz ozzie      s n (aDeclareBlockers atcks inCombat2 isOpponent@refl blcks) = (aDeclareBlockers atcks inCombat2 isOpponent blcks )
 -- health-map-action brigyeetz brigyeetz  s n (aDeclareBlockers atcks inCombat2 isOpponent@refl blcks) = (aDeclareBlockers atcks inCombat2 isOpponent blcks )
--- health-map-action brigyeetz p2         s n (aDoNothing                                        ) = (aDoNothing                                        )
+-- health-map-action brigyeetz p2         s n (aDoNothing                                            ) = (aDoNothing                                        )
 
 
 -- IDEA: Transpose player-state, so the state contains both players' states for each variable.
@@ -139,7 +141,7 @@ health-map-action p1 p2         s n (aDoNothing                                 
 -- This would howoever make it more difficult to handle only the state for one player.
 
 health-ineq-preserved : ∀ (p1 p2 : Player) (s : GameState) (n : ℕ) (act : Action s p2)
-    → Σ[ m ∈ ℕ ] performAction (mapHealth p1 s (_+ n)) p2 (health-map-action p1 p2 s n act) ≡ mapHealth p1 (performAction s p2 act) (_+ m)
+    → Σ[ m ∈ ℕ ] performAction (mapHealth p1 s (_+ n)) p2 (health-map-action p1 p2 s (_+ n) act) ≡ mapHealth p1 (performAction s p2 act) (_+ m)
 -- health-ineq-preserved p1 p2         s n (aCastWalker1 isActive inMain hasMana isInHand         ) = n , {! refl  !}
 -- health-ineq-preserved p1 .brigyeetz s n (aCastWalker2 isActive inMain hasMana isInHand         ) = n , {!   !}
 -- health-ineq-preserved p1 .ozzie     s n (aCastElixir isActive inMain hasMana isInHand          ) = n , {!   !}
@@ -277,20 +279,33 @@ more-health-is-good-o s (willWin isAliv (aDoNothing                             
 
 -- Alternative: Macro for pattern matching
 
+nonZero-+ : ∀ n m → NonZero n → NonZero (n + m)
+nonZero-+ (suc n) m nz = tt
+
 more-health-is-good : ∀ p n (s : GameState) → winningGame p s → winningGame p (mapHealth p s (_+ n))
 more-opponent-health-is-bad : ∀ p n (s : GameState) → losingGame p s → losingGame p (mapHealth (opponentOf p) s (_+ n))
 more-health-is-good ozzie n s (hasWon pf) = hasWon pf
 more-health-is-good brigyeetz n s (hasWon pf) = hasWon pf
-more-health-is-good p@ozzie n s (willWin lives (act , oppLoses)) = willWin {!   !} (health-map-action p p s n act , (case health-ineq-preserved p p s n act of λ where
+more-health-is-good p@ozzie n s (willWin lives (act , oppLoses)) = willWin (nonZero-+ (healthTotal (GameState.ozzieState s)) n lives) (health-map-action p p s (_+ n) act , (case health-ineq-preserved p p s n act of λ where
     (m , snd) → subst (losingGame brigyeetz) (sym snd) (more-opponent-health-is-bad brigyeetz m (performAction s ozzie act) oppLoses)))
     -- (m , snd) → {! subst (losingGame ozzie) (sym snd) !}))
-more-health-is-good p n s (willWin lives (act , oppLoses)) = willWin {!   !} (health-map-action p p s n act , (case health-ineq-preserved p p s n act of λ where
+more-health-is-good p@brigyeetz n s (willWin lives (act , oppLoses)) = willWin (nonZero-+ (healthTotal (GameState.brigyeetzState s)) n lives) (health-map-action p p s (_+ n) act , (case health-ineq-preserved p p s n act of λ where
     (m , snd) → {!   !}))
 
--- more-health-is-good brigyeetz n s
-more-opponent-health-is-bad p@ozzie n s lost act = {!  (health-map-action ? ? s n ) !}
+more-opponent-health-is-bad p@ozzie n s lost act = case health-ineq-preserved brigyeetz p s n baseAct of λ where
+    (m , eq) → subst (winningGame brigyeetz) (trans (sym eq) (cong (performAction (mapHealth brigyeetz s (_+ n)) ozzie) baseActEq)) (more-health-is-good brigyeetz m (performAction s  ozzie baseAct) (lost baseAct))
+    -- more-health-is-good brigyeetz {!   !} {! performAction (mapHealth brigyeetz s (_+ n)) ozzie act  !} (subst (winningGame brigyeetz) {! health-ineq-preserved brigyeetz p s n baseAct  !} (lost baseAct))
+    -- health-ineq-preserved brigyeetz p s n baseAct
+    -- (subst (winningGame brigyeetz) ? (lost baseAct))
+  where
+    baseAct : Action s ozzie
+    baseAct = subst (λ s → Action s ozzie) (cong (setHealth brigyeetz s) (m+n∸n≡m _ n))  (health-map-action brigyeetz p (mapHealth brigyeetz s (_+ n)) (_∸ n) act)
+    baseActEq : health-map-action brigyeetz ozzie s (_+ n) baseAct ≡ act
+    baseActEq = {!   !}
+
 more-opponent-health-is-bad p@brigyeetz n s lost act = {!   !}
 
+-- more-opponent-health-is-bad p@ozzie n s lost act = {!  subst (λ n → Action (setHealth ozzie s n) ozzie) ? (health-map-action p p (mapHealth ozzie s (_+ n)) (_∸ n)  act) !}
 -- need inverse of health-map-action
 
 -- more-health-is-good ozzie      s (willWin isAliv (aCastWalker1 x x₁ hasMana isInHand , snd)) = willWin tt {!   !}
