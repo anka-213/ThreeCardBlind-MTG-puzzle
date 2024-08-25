@@ -49,7 +49,7 @@ data Card : Set where
     -- city : Card
 
 open Card public
-{-# COMPILE AGDA2HS Card #-}
+{-# COMPILE AGDA2HS Card deriving (Show, Eq, Ord) #-}
 
 record WalkerState : Set where
     field
@@ -58,7 +58,7 @@ record WalkerState : Set where
         nCounters : ℕ
 
 open WalkerState public
-{-# COMPILE AGDA2HS WalkerState #-}
+{-# COMPILE AGDA2HS WalkerState deriving (Show, Eq, Ord) #-}
 
 walkerInitialState : WalkerState
 walkerInitialState = record
@@ -69,14 +69,14 @@ walkerInitialState = record
 record ElixirState : Set where
     constructor MkElixirState
 
-{-# COMPILE AGDA2HS ElixirState #-}
+{-# COMPILE AGDA2HS ElixirState deriving (Show, Eq, Ord) #-}
 
 CardState : Card → Set
 CardState Walker = WalkerState
 CardState Elixir = ElixirState
 -- CardState city = CityState
 
--- {-# COMPILE AGDA2HS CardState #-}
+-- {-# COMPILE AGDA2HS CardState deriving (Show, Eq, Ord) #-}
 
 record Proxy (a : Set) : Set where
     constructor MkProxy
@@ -105,7 +105,7 @@ data CardPosition (c : Set) : Set where
     InDeck : CardPosition c
     OnBattlefield : c → CardPosition c
 
-{-# COMPILE AGDA2HS CardPosition #-}
+{-# COMPILE AGDA2HS CardPosition deriving (Show, Eq, Ord) #-}
 
 CardPositionFor : Card → Set
 CardPositionFor c = CardPosition (CardState c)
@@ -114,7 +114,7 @@ data Player : Set where
     Ozzie : Player
     Brigyeetz : Player
 
-{-# COMPILE AGDA2HS Player #-}
+{-# COMPILE AGDA2HS Player deriving (Show, Eq, Ord) #-}
 
 opponentOf : Player → Player
 opponentOf Ozzie = Brigyeetz
@@ -128,7 +128,7 @@ record ThopterState : Set where
         untappedUnsickThopters : ℕ
         summoningSickThopters : ℕ
 open ThopterState public
-{-# COMPILE AGDA2HS ThopterState #-}
+{-# COMPILE AGDA2HS ThopterState deriving (Show, Eq, Ord) #-}
 
 card2ForPlayer : Player → Card
 card2ForPlayer Ozzie = Elixir
@@ -152,7 +152,7 @@ record PlayerState (card2StateType : Set) : Set where
 
 open PlayerState public
 
-{-# COMPILE AGDA2HS PlayerState #-}
+{-# COMPILE AGDA2HS PlayerState deriving (Show, Eq, Ord) #-}
 
 data AnyCardState (f : Set → Set) : (@0 c : Card) → Set where
     WalkerCard : f WalkerState → AnyCardState f Walker
@@ -232,7 +232,7 @@ module _ (@0 ac : AttackContext) where
         -- isWalker2Attack = is-just walker2Attack
 
     open AttackerInfo public
-    {-# COMPILE AGDA2HS AttackerInfo #-}
+    {-# COMPILE AGDA2HS AttackerInfo deriving (Show, Eq, Ord) #-}
 
 
     -- TODO: fix blockers
@@ -244,7 +244,7 @@ module _ (@0 ac : AttackContext) where
         BlockWalker1 : @0 T (walker1Attack a) → BlockTarget a
         BlockWalker2 : @0 T (walker2Attack a) → BlockTarget a
         -- noBlock : BlockTarget
-    {-# COMPILE AGDA2HS BlockTarget #-}
+    {-# COMPILE AGDA2HS BlockTarget deriving (Show, Eq, Ord) #-}
 
     maybe2nat : {A : Set} → Maybe A → ℕ
     maybe2nat (just _) = 1
@@ -270,7 +270,7 @@ module _ (@0 ac : AttackContext) where
             @0 walker2Block₋valid : if is-just walker2Block then T (BlockerContext.availableWalker2 bc) else ⊤
 
     open BlockerInfo public
-    {-# COMPILE AGDA2HS BlockerInfo #-}
+    {-# COMPILE AGDA2HS BlockerInfo deriving (Show, Eq, Ord) #-}
 
     {-
     Possible blocks:
@@ -308,13 +308,13 @@ data CombatStep : Set where
     DeclaredAttackers : (@0 ac : AttackContext) → AttackerInfo ac → CombatStep
     DeclaredBlockers : (@0 ac : AttackContext) → (a : AttackerInfo ac) → {@0 bc : BlockerContext} → BlockerInfo ac a bc → CombatStep
 
-{-# COMPILE AGDA2HS CombatStep #-}
+{-# COMPILE AGDA2HS CombatStep deriving (Show, Eq, Ord) #-}
 
 data Phase : Set where
     PreCombatMain : Phase
     Combat : CombatStep → Phase
     PostCombatMain : Phase
-{-# COMPILE AGDA2HS Phase #-}
+{-# COMPILE AGDA2HS Phase deriving (Show, Eq, Ord) #-}
 
 PlayerStateFor : Player → Set
 PlayerStateFor p = PlayerState (CardState (card2ForPlayer p))
@@ -343,24 +343,22 @@ record GameState : Set where
     opponentState = stateOfPlayer opponent
 
 open GameState public
-{-# COMPILE AGDA2HS GameState #-}
-{-
+{-# COMPILE AGDA2HS GameState deriving (Show, Eq, Ord) #-}
 -- TODO: Maybe add priority field to game state to tell who can do an action
 
 module _ (s : GameState) where
-    open GameState s
         -- record s { activePlayerState = f (activePlayerState s)}
-    setPlayerState : ∀ (p : Player) → PlayerState p → GameState
+    setPlayerState : ∀ (p : Player) → PlayerStateFor p → GameState
     setPlayerState Ozzie s1 = record s { ozzieState = s1 ; lastPlayerPassed = false}
     setPlayerState Brigyeetz s1 = record s { brigyeetzState = s1 ; lastPlayerPassed = false}
 
-    withPlayer : ∀ (p : Player) → (PlayerState p → PlayerState p) → GameState
-    withPlayer p f = setPlayerState p (f (stateOfPlayer p))
+    withPlayer : ∀ (p : Player) → (PlayerStateFor p → PlayerStateFor p) → GameState
+    withPlayer p f = setPlayerState p (f (stateOfPlayer s p))
 
     -- sp = stateOfPlayer p
-    withPlayerP : ∀ (p : Player) (P : PlayerState p → Set) → (P (stateOfPlayer p)) → ((s : PlayerState p) → P s → PlayerState p) → GameState
+    withPlayerP : ∀ (p : Player) (P : PlayerStateFor p → Set) → (P (stateOfPlayer s p)) → ((s : PlayerStateFor p) → P s → PlayerStateFor p) → GameState
     withPlayerP p P arg f = setPlayerState p (f sp arg)
-      where sp = stateOfPlayer p
+      where sp = stateOfPlayer s p
     -- withPlayer Ozzie f = record s { ozzieState = f ozzieState ; lastPlayerPassed = false}
     -- withPlayer Brigyeetz f = record s { brigyeetzState = f brigyeetzState ; lastPlayerPassed = false}
 
@@ -373,6 +371,7 @@ noThopters = record
     ; summoningSickThopters = 0
     }
 
+{-
 ozzieStart : PlayerState Ozzie
 ozzieStart = record
     { healthTotal = 20

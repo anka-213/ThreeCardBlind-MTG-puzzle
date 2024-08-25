@@ -4,14 +4,17 @@ import Numeric.Natural (Natural)
 
 data Card = Walker
           | Elixir
+              deriving (Show, Eq, Ord)
 
 data WalkerState = WalkerState{isTapped :: Bool,
                                summoningSickness :: Bool, nCounters :: Natural}
+                     deriving (Show, Eq, Ord)
 
 walkerInitialState :: WalkerState
 walkerInitialState = WalkerState False True 1
 
 data ElixirState = MkElixirState{}
+                     deriving (Show, Eq, Ord)
 
 data Proxy a = MkProxy{}
 
@@ -25,9 +28,11 @@ data CardPosition c = InHand
                     | InGraveyard
                     | InDeck
                     | OnBattlefield c
+                        deriving (Show, Eq, Ord)
 
 data Player = Ozzie
             | Brigyeetz
+                deriving (Show, Eq, Ord)
 
 opponentOf :: Player -> Player
 opponentOf Ozzie = Brigyeetz
@@ -36,6 +41,7 @@ opponentOf Brigyeetz = Ozzie
 data ThopterState = ThopterState{tappedThopters :: Natural,
                                  untappedUnsickThopters :: Natural,
                                  summoningSickThopters :: Natural}
+                      deriving (Show, Eq, Ord)
 
 card2ForPlayer :: Player -> Card
 card2ForPlayer Ozzie = Elixir
@@ -48,6 +54,7 @@ data PlayerState card2StateType = PlayerState{healthTotal ::
                                               walker1State :: CardPosition WalkerState,
                                               card2State :: CardPosition card2StateType,
                                               deck :: [Card]}
+                                    deriving (Show, Eq, Ord)
 
 data AnyCardState f = WalkerCard (f WalkerState)
                     | ElixirCard (f ElixirState)
@@ -64,15 +71,18 @@ isTappableWalker _ = False
 
 data AttackerInfo = AttackerInfo{thoptersAttack :: Natural,
                                  walker1Attack :: Bool, walker2Attack :: Bool}
+                      deriving (Show, Eq, Ord)
 
 data BlockTarget = BlockThopter
                  | BlockWalker1
                  | BlockWalker2
+                     deriving (Show, Eq, Ord)
 
 data BlockerInfo = BlockerInfo{thopter_thopter_blocks :: Natural,
                                thopter_block_walker1 :: Bool, thopter_block_walker2 :: Bool,
                                walker1Block :: Maybe BlockTarget,
                                walker2Block :: Maybe BlockTarget}
+                     deriving (Show, Eq, Ord)
 
 noBlockers :: BlockerInfo
 noBlockers = BlockerInfo 0 False False Nothing Nothing
@@ -80,13 +90,16 @@ noBlockers = BlockerInfo 0 False False Nothing Nothing
 data CombatStep = CombatStart
                 | DeclaredAttackers AttackerInfo
                 | DeclaredBlockers AttackerInfo BlockerInfo
+                    deriving (Show, Eq, Ord)
 
 data Phase = PreCombatMain
            | Combat CombatStep
            | PostCombatMain
+               deriving (Show, Eq, Ord)
 
 data GameState = GameState{phase :: Phase, activePlayer :: Player,
                            ozzieState :: PlayerState ElixirState,
                            brigyeetzState :: PlayerState WalkerState,
                            lastPlayerPassed :: Bool}
+                   deriving (Show, Eq, Ord)
 
