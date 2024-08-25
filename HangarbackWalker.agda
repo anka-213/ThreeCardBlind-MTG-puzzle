@@ -631,6 +631,7 @@ module _ (s : GameState) where
     data Step : (s : GameState) → Set where
         doAction : ∀ p → (a : Action p) → Step (performAction p a)
 
+{-
 
 gameExample : GameState → GameState → Set
 gameExample = Star Step
@@ -775,7 +776,6 @@ HasBigWalkers s@record
     } = (health ≤ size1) × (health ≤ size2) × (thopters ≡ noThopters)
 HasBigWalkers _ = ⊥
 
-{-
 big-walker-game-wins : ∀ s → HasBigWalkers s → winningGame brigyeetz s
 big-walker-game-wins s@record
     { phase = combat CombatStart
