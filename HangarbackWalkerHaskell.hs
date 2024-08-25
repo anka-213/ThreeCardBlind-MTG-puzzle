@@ -117,3 +117,21 @@ initialGameState :: Player -> GameState
 initialGameState p
   = GameState PreCombatMain p ozzieStart brigyeetzStart False
 
+drawCardForPlayer :: PlayerState p -> PlayerState p
+drawCardForPlayer s
+  = PlayerState (healthTotal s) (floatingMana s) (thopters s)
+      (isCityUntapped s)
+      (new_walker1State (deck s) (walker1State s))
+      (new_card2State (deck s) (card2State s))
+      new_deck
+  where
+    new_deck :: [Card]
+    new_deck = drop 1 (deck s)
+    new_walker1State ::
+                     [Card] -> CardPosition WalkerState -> CardPosition WalkerState
+    new_walker1State (Walker : _) _ = InHand
+    new_walker1State _ cardState = cardState
+    new_card2State :: [Card] -> CardPosition c -> CardPosition c
+    new_card2State (Elixir : _) _ = InHand
+    new_card2State _ cardState = cardState
+

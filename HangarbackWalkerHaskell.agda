@@ -9,7 +9,8 @@ open import Data.Empty
 open import Data.Bool hiding (_≤_)
 open import Data.Product
 open import Data.Sum.Base
-open import Data.List
+open import Data.List hiding (drop)
+-- open import Haskell.Prelude using (List ; drop ; [])
 open import Data.Maybe
 open import Relation.Nullary
 open import Relation.Binary.Construct.Closure.ReflexiveTransitive
@@ -411,6 +412,8 @@ initialGameState p = record
 -- Above logic is LTL
 
 -- Deck order being decided on draw is not valid
+
+drop = Data.List.drop
 
 -- We ignore invalid states here
 drawCardForPlayer : ∀ {p} → PlayerState p → PlayerState p

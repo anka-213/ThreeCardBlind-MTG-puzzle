@@ -10,8 +10,9 @@
       let
         pkgs = import nixpkgs { inherit system; };
 
-        agda2hs-mine = agda2hs.outputs.lib.${system}.withPackages [ pkgs.agdaPackages.standard-library ];
-        agda-mine = pkgs.agda.withPackages [ pkgs.agdaPackages.standard-library ];
+        agda-libs = [ pkgs.agdaPackages.standard-library agda2hs.outputs.packages.${system}.agda2hs-lib ];
+        agda2hs-mine = agda2hs.outputs.lib.${system}.withPackages agda-libs;
+        agda-mine = pkgs.agda.withPackages agda-libs;
       in
       {
         packages = {
