@@ -103,3 +103,17 @@ data GameState = GameState{phase :: Phase, activePlayer :: Player,
                            lastPlayerPassed :: Bool}
                    deriving (Show, Eq, Ord)
 
+noThopters :: ThopterState
+noThopters = ThopterState 0 0 0
+
+ozzieStart :: PlayerState ElixirState
+ozzieStart = PlayerState 20 False noThopters True InHand InHand []
+
+brigyeetzStart :: PlayerState WalkerState
+brigyeetzStart
+  = PlayerState 20 False noThopters True InHand InHand []
+
+initialGameState :: Player -> GameState
+initialGameState p
+  = GameState PreCombatMain p ozzieStart brigyeetzStart False
+
