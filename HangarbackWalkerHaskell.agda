@@ -445,9 +445,8 @@ module _ {@0 p} (s : PlayerState p) where
 
 {-# COMPILE AGDA2HS consumeMana #-}
 
-module _ (s : GameState) where
-    withPlayerCost : ∀ (p : Player) n → @0 HasMana (stateOfPlayer s p) n → (PlayerState p → PlayerState p) → GameState
-    withPlayerCost p n hasMana f = setPlayerState s p (f (consumeMana (stateOfPlayer s p) n hasMana))
+withPlayerCost : ∀ (s : GameState) (p : Player) n → @0 HasMana (stateOfPlayer s p) n → (PlayerState p → PlayerState p) → GameState
+withPlayerCost s p n hasMana f = setPlayerState s p (f (consumeMana (stateOfPlayer s p) n hasMana))
 
 {-# COMPILE AGDA2HS withPlayerCost #-}
 
@@ -456,20 +455,23 @@ module _ (s : GameState) where
 
 castWalker1 : ∀ {p} → PlayerState p → PlayerState p
 castWalker1 s = record s {  walker1State = OnBattlefield (CWalkerState walkerInitialState) }
+{-# COMPILE AGDA2HS castWalker1 #-}
 
 castWalker2 : PlayerState Brigyeetz → PlayerState Brigyeetz
 castWalker2 s = record s { card2State = OnBattlefield (CWalkerState walkerInitialState) }
+{-# COMPILE AGDA2HS castWalker2 #-}
 
 castElixir : PlayerState Ozzie → PlayerState Ozzie
 castElixir s = record s { card2State = OnBattlefield CElixirState }
+{-# COMPILE AGDA2HS castElixir #-}
 
-{-
 data canActivateWalker : CardPosition Walker → Set where
-  valid : ∀ n → canActivateWalker (OnBattlefield (record { isTapped = false ; summoningSickness = false ; nCounters = n}))
+  valid : ∀ n → canActivateWalker (OnBattlefield (CWalkerState (record { isTapped = false ; summoningSickness = false ; nCounters = n})))
 
 canActivateWalker2 : ∀ {p} → p ≡ Brigyeetz → CardPosition (card2ForPlayer p) → Set
 canActivateWalker2 refl s = canActivateWalker s
 
+{-
 -- activateWalker1 : ∀ {p} → canActivateWalker  →  PlayerState p → PlayerState p
 -- activateWalker1 _ s = record s { floatingMana = false ; walker1State = OnBattlefield walkerInitialState }
 

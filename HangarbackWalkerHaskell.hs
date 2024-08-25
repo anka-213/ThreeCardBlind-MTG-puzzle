@@ -173,3 +173,27 @@ withPlayerCost ::
 withPlayerCost s p n f
   = setPlayerState s p (f (consumeMana (stateOfPlayer s p) n))
 
+castWalker1 :: Player -> PlayerState -> PlayerState
+castWalker1 p s
+  = PlayerState (healthTotal s) (floatingMana s) (thopters s)
+      (isCityUntapped s)
+      (OnBattlefield (CWalkerState walkerInitialState))
+      (card2State s)
+      (deck s)
+
+castWalker2 :: PlayerState -> PlayerState
+castWalker2 s
+  = PlayerState (healthTotal s) (floatingMana s) (thopters s)
+      (isCityUntapped s)
+      (walker1State s)
+      (OnBattlefield (CWalkerState walkerInitialState))
+      (deck s)
+
+castElixir :: PlayerState -> PlayerState
+castElixir s
+  = PlayerState (healthTotal s) (floatingMana s) (thopters s)
+      (isCityUntapped s)
+      (walker1State s)
+      (OnBattlefield CElixirState)
+      (deck s)
+
