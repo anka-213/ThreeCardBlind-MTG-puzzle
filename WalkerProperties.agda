@@ -97,15 +97,21 @@ mapBlockers brigyeetz s@record{activePlayer = brigyeetz} blckrs = blckrs
 -- Downside: how do we implement taking turns to do things in isWinningGame?
 
 health-map-action : ∀ (p1 p2 : Player) (s : GameState) (f : ℕ → ℕ) (act : Action s p2) → Action (mapHealth p1 s f) p2
-health-map-action p1 p2         s n (aCastWalker1 isActive inMain hasMana isInHand    ) = aCastWalker1 isActive inMain (mapMana p1 p2 s 2 hasMana) (mapInHand  p1 p2 s isInHand)
-health-map-action p1 p2         s n (aCastWalker2 isActive inMain hasMana isInHand    ) = aCastWalker2 isActive inMain (mapMana p1 p2 s 2 hasMana) (mapInHand2 p1 p2 s isInHand)
-health-map-action p1 p2         s n (aCastElixir isActive inMain hasMana isInHand     ) = aCastElixir  isActive inMain (mapMana p1 p2 s 1 hasMana) (mapInHand2 p1 p2 s isInHand)
-health-map-action p1 p2         s n (aActivateWalker1 hasMana canActivate             ) = aActivateWalker1 (mapMana p1 p2 s 1 hasMana) (subst canActivateWalker (health-card1-independent p1 p2 s) canActivate)
-health-map-action p1 p2         s n (aActivateWalker2 hasMana canActivate             ) = aActivateWalker2 (mapMana p1 p2 s 1 hasMana) (subst canActivateWalker (health-card2-independent p1 p2 s) canActivate)
-health-map-action p1 p2         s n (aActivateElixir hasMana canActivate              ) = aActivateElixir (mapMana p1 p2 s 2 hasMana) (subst (_≡ onBattlefield elixirState) (health-card2-independent p1 p2 s) canActivate)
-health-map-action p1 p2         s n (aDeclareAttackers inCombat isActive atcks        ) = aDeclareAttackers inCombat isActive (mapAttackers p1 s atcks)
-health-map-action p1 p2         s n (aDeclareBlockers atcks inCombat2 isOpponent blcks) = aDeclareBlockers atcks inCombat2 isOpponent (mapBlockers p1 s blcks)
-health-map-action p1 p2         s n (aDoNothing                                       ) = aDoNothing
+health-map-action p1 p2 s f (aPlayerAction x) = aPlayerAction {!   !}
+health-map-action p1 p2 s f (aMainPhaseAction isActive inMain x) = aMainPhaseAction isActive inMain {!  !}
+health-map-action p1 p2 s f (aDeclareAttackers inCombat isActive atcks) = {!   !}
+health-map-action p1 p2 s f (aDeclareBlockers atcks inCombat2 isOpponent blcks) = {!   !}
+health-map-action p1 p2 s f aDoNothing = {!   !}
+-- health-map-action p1 p2         s n (aCastWalker1 isActive inMain hasMana isInHand    ) = aCastWalker1 isActive inMain (mapMana p1 p2 s 2 hasMana) (mapInHand  p1 p2 s isInHand)
+-- health-map-action p1 p2         s n (aCastWalker2 isActive inMain hasMana isInHand    ) = aCastWalker2 isActive inMain (mapMana p1 p2 s 2 hasMana) (mapInHand2 p1 p2 s isInHand)
+-- health-map-action p1 p2         s n (aCastElixir isActive inMain hasMana isInHand     ) = aCastElixir  isActive inMain (mapMana p1 p2 s 1 hasMana) (mapInHand2 p1 p2 s isInHand)
+-- health-map-action p1 p2         s n (aActivateWalker1 hasMana canActivate             ) = aActivateWalker1 (mapMana p1 p2 s 1 hasMana) (subst canActivateWalker (health-card1-independent p1 p2 s) canActivate)
+-- health-map-action p1 p2         s n (aActivateWalker2 hasMana canActivate             ) = aActivateWalker2 (mapMana p1 p2 s 1 hasMana) (subst canActivateWalker (health-card2-independent p1 p2 s) canActivate)
+-- health-map-action p1 p2         s n (aActivateElixir hasMana canActivate              ) = aActivateElixir (mapMana p1 p2 s 2 hasMana) (subst (_≡ onBattlefield elixirState) (health-card2-independent p1 p2 s) canActivate)
+-- health-map-action p1 p2         s n (aDeclareAttackers inCombat isActive atcks        ) = aDeclareAttackers inCombat isActive (mapAttackers p1 s atcks)
+-- health-map-action p1 p2         s n (aDeclareBlockers atcks inCombat2 isOpponent blcks) = aDeclareBlockers atcks inCombat2 isOpponent (mapBlockers p1 s blcks)
+-- health-map-action p1 p2         s n (aDoNothing                                       ) = aDoNothing
+
 
 -- health-map-action : ∀ (p1 p2 : Player) (s : GameState) (n : ℕ) (act : Action s p2) → Action (mapHealth p1 s (_+ n)) p2
 -- health-map-action ozzie ozzie      s n (aCastWalker1 isActive inMain hasMana isInHand             ) = (aCastWalker1 isActive inMain hasMana isInHand     )
@@ -135,6 +141,23 @@ health-map-action p1 p2         s n (aDoNothing                                 
 -- health-map-action brigyeetz brigyeetz  s n (aDeclareBlockers atcks inCombat2 isOpponent@refl blcks) = (aDeclareBlockers atcks inCombat2 isOpponent blcks )
 -- health-map-action brigyeetz p2         s n (aDoNothing                                            ) = (aDoNothing                                        )
 
+more-health-is-good-o : ∀ (s : GameState) → winningGame ozzie s → winningGame ozzie (mapPlayer ozzie s λ sp → record sp { healthTotal = suc (healthTotal sp)})
+more-opponent-health-is-bad-b : ∀ (s : GameState) → losingGame brigyeetz s → losingGame brigyeetz (mapPlayer ozzie s λ sp → record sp { healthTotal = suc (healthTotal sp)})
+
+more-health-is-good-o s (hasWon won) = hasWon won
+more-health-is-good-o s (willWin lives (aPlayerAction x , loses)) = willWin {! lives  !} {!   !}
+more-health-is-good-o s (willWin lives (aMainPhaseAction isActive inMain x , loses)) = willWin {!   !} {!   !}
+more-health-is-good-o s (willWin lives (aDeclareAttackers inCombat isActive atcks , loses)) = willWin {!   !} {!   !}
+more-health-is-good-o s (willWin lives (aDeclareBlockers atcks inCombat2 isOpponent blcks , loses)) = willWin {!   !} {!   !}
+more-health-is-good-o s (willWin lives (aDoNothing , loses)) = willWin {!   !} {!   !}
+
+more-opponent-health-is-bad-b s loses (aPlayerAction x) = more-health-is-good-o _ (loses (aPlayerAction x))
+more-opponent-health-is-bad-b s loses (aMainPhaseAction isActive inMain x) = more-health-is-good-o _ (loses (aMainPhaseAction isActive inMain x))
+more-opponent-health-is-bad-b s loses (aDeclareAttackers inCombat isActive atcks) = {!   !}
+more-opponent-health-is-bad-b s loses (aDeclareBlockers atcks inCombat2 isOpponent blcks) = {!   !}
+more-opponent-health-is-bad-b s loses aDoNothing = {!   !}
+
+{-
 
 -- IDEA: Transpose player-state, so the state contains both players' states for each variable.
 -- This would make more things independent of each other without picking an explict player.
