@@ -1,4 +1,3 @@
-{-# LANGUAGE ScopedTypeVariables #-}
 module HangarbackWalkerHaskell where
 
 import Numeric.Natural (Natural)
@@ -17,19 +16,15 @@ walkerInitialState = WalkerState False True 1
 data ElixirState = MkElixirState{}
                      deriving (Show, Eq, Ord)
 
-data Proxy a = MkProxy{}
+data CardState = CWalkerState WalkerState
+               | CElixirState
+                   deriving (Show, Eq, Ord)
 
-class StateForCard st where
-    correspondingCard :: Proxy st -> Card
-
-instance StateForCard WalkerState where
-    correspondingCard x = Walker
-
-data CardPosition c = InHand
-                    | InGraveyard
-                    | InDeck
-                    | OnBattlefield c
-                        deriving (Show, Eq, Ord)
+data CardPosition = InHand
+                  | InGraveyard
+                  | InDeck
+                  | OnBattlefield CardState
+                      deriving (Show, Eq, Ord)
 
 data Player = Ozzie
             | Brigyeetz
@@ -48,26 +43,23 @@ card2ForPlayer :: Player -> Card
 card2ForPlayer Ozzie = Elixir
 card2ForPlayer Brigyeetz = Walker
 
-data PlayerState card2StateType = PlayerState{healthTotal ::
-                                              Natural,
-                                              floatingMana :: Bool, thopters :: ThopterState,
-                                              isCityUntapped :: Bool,
-                                              walker1State :: CardPosition WalkerState,
-                                              card2State :: CardPosition card2StateType,
-                                              deck :: [Card]}
-                                    deriving (Show, Eq, Ord)
+data PlayerState = PlayerState{healthTotal :: Natural,
+                               floatingMana :: Bool, thopters :: ThopterState,
+                               isCityUntapped :: Bool, walker1State :: CardPosition,
+                               card2State :: CardPosition, deck :: [Card]}
+                     deriving (Show, Eq, Ord)
 
 data AnyCardState f = WalkerCard (f WalkerState)
                     | ElixirCard (f ElixirState)
 
-isUntappedWalker :: AnyCardState CardPosition -> Bool
+isUntappedWalker :: CardPosition -> Bool
 isUntappedWalker
-  (WalkerCard (OnBattlefield (WalkerState False _ _))) = True
+  (OnBattlefield (CWalkerState (WalkerState False _ _))) = True
 isUntappedWalker _ = False
 
-isTappableWalker :: AnyCardState CardPosition -> Bool
+isTappableWalker :: CardPosition -> Bool
 isTappableWalker
-  (WalkerCard (OnBattlefield (WalkerState False False _))) = True
+  (OnBattlefield (CWalkerState (WalkerState False False _))) = True
 isTappableWalker _ = False
 
 data AttackerInfo = AttackerInfo{thoptersAttack :: Natural,
@@ -99,14 +91,12 @@ data Phase = PreCombatMain
                deriving (Show, Eq, Ord)
 
 data GameState = GameState{phase :: Phase, activePlayer :: Player,
-                           ozzieState :: PlayerState ElixirState,
-                           brigyeetzState :: PlayerState WalkerState,
+                           ozzieState :: PlayerState, brigyeetzState :: PlayerState,
                            lastPlayerPassed :: Bool}
                    deriving (Show, Eq, Ord)
 
 withPlayer ::
-           GameState ->
-             Player -> (forall c. PlayerState c -> PlayerState c) -> GameState
+           GameState -> Player -> (PlayerState -> PlayerState) -> GameState
 withPlayer s Ozzie f
   = GameState (phase s) (activePlayer s) (f (ozzieState s))
       (brigyeetzState s)
@@ -119,10 +109,10 @@ withPlayer s Brigyeetz f
 noThopters :: ThopterState
 noThopters = ThopterState 0 0 0
 
-ozzieStart :: PlayerState ElixirState
+ozzieStart :: PlayerState
 ozzieStart = PlayerState 20 False noThopters True InHand InHand []
 
-brigyeetzStart :: PlayerState WalkerState
+brigyeetzStart :: PlayerState
 brigyeetzStart
   = PlayerState 20 False noThopters True InHand InHand []
 
@@ -130,32 +120,32 @@ initialGameState :: Player -> GameState
 initialGameState p
   = GameState PreCombatMain p ozzieStart brigyeetzStart False
 
-drawCardForPlayer :: PlayerState p -> PlayerState p
-drawCardForPlayer s
+drawCardForPlayer :: Player -> PlayerState -> PlayerState
+drawCardForPlayer p s
   = PlayerState (healthTotal s) (floatingMana s) (thopters s)
       (isCityUntapped s)
       (new_walker1State (deck s) (walker1State s))
-      (new_card2State (deck s) (card2State s))
+      (new_card2State (card2ForPlayer p) (deck s) (card2State s))
       new_deck
   where
     new_deck :: [Card]
     new_deck = drop 1 (deck s)
-    new_walker1State ::
-                     [Card] -> CardPosition WalkerState -> CardPosition WalkerState
+    new_walker1State :: [Card] -> CardPosition -> CardPosition
     new_walker1State (Walker : _) _ = InHand
     new_walker1State _ cardState = cardState
-    new_card2State :: [Card] -> CardPosition c -> CardPosition c
-    new_card2State (Elixir : _) _ = InHand
-    new_card2State _ cardState = cardState
+    new_card2State :: Card -> [Card] -> CardPosition -> CardPosition
+    new_card2State c (Elixir : _) _ = InHand
+    new_card2State c _ cardState = cardState
 
 drawCard :: GameState -> GameState
-drawCard s = withPlayer s (activePlayer s) drawCardForPlayer
+drawCard s
+  = withPlayer s (activePlayer s)
+      (drawCardForPlayer (activePlayer s))
 
 data ManaCost = One
               | Two
 
-consumeMana ::
-            forall p . PlayerState p -> ManaCost -> PlayerState p
+consumeMana :: PlayerState -> ManaCost -> PlayerState
 consumeMana s One
   = PlayerState (healthTotal s) (isCityUntapped s) (thopters s) False
       (walker1State s)

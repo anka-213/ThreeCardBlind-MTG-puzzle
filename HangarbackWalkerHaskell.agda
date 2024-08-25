@@ -73,44 +73,25 @@ record ElixirState : Set where
 
 {-# COMPILE AGDA2HS ElixirState deriving (Show, Eq, Ord) #-}
 
-CardState : Card → Set
-CardState Walker = WalkerState
-CardState Elixir = ElixirState
+data CardState : (@0 c : Card) → Set where
+    CWalkerState : WalkerState → CardState Walker
+    CElixirState : CardState Elixir
 -- CardState city = CityState
 
--- {-# COMPILE AGDA2HS CardState deriving (Show, Eq, Ord) #-}
+{-# COMPILE AGDA2HS CardState deriving (Show, Eq, Ord) #-}
 
-record Proxy (a : Set) : Set where
-    constructor MkProxy
-{-# COMPILE AGDA2HS Proxy #-}
-
-record StateForCard (st : Set) : Set₁ where
-    field
-        correspondingCard : {Proxy st} → Card
-        -- correspondingCard : Card
-        @0 pf-State : CardState (correspondingCard) ≡ st
-open StateForCard public
-
-{-# COMPILE AGDA2HS StateForCard class #-}
-
-instance
-    iWalkerCard : StateForCard WalkerState
-    iWalkerCard .correspondingCard = Walker
-    iWalkerCard .pf-State = refl
-
-{-# COMPILE AGDA2HS iWalkerCard #-}
 
 -- c = CardState c = WalkerState | ElixirState
-data CardPosition (c : Set) : Set where
+data CardPosition (@0 c : Card) : Set where
     InHand : CardPosition c
     InGraveyard : CardPosition c
     InDeck : CardPosition c
-    OnBattlefield : c → CardPosition c
+    OnBattlefield : CardState c → CardPosition c
 
 {-# COMPILE AGDA2HS CardPosition deriving (Show, Eq, Ord) #-}
 
 CardPositionFor : Card → Set
-CardPositionFor c = CardPosition (CardState c)
+CardPositionFor c = CardPosition c
 
 data Player : Set where
     Ozzie : Player
@@ -138,7 +119,7 @@ card2ForPlayer Brigyeetz = Walker
 {-# COMPILE AGDA2HS card2ForPlayer #-}
 
 -- IDEA: Dont use set here, instead have a null thing and disambiguate with a data type in the end
-record PlayerState (card2StateType : Set) : Set where
+record PlayerState (@0 p : Player) : Set where
     pattern
     field
         healthTotal : ℕ
@@ -146,8 +127,8 @@ record PlayerState (card2StateType : Set) : Set where
         thopters : ThopterState
         isCityUntapped : Bool
         -- validMana : T not (floatingMana ∧ isCityUntapped)
-        walker1State : CardPosition WalkerState
-        card2State : CardPosition card2StateType -- (card2ForPlayer p)
+        walker1State : CardPosition Walker
+        card2State : CardPosition (card2ForPlayer p)
         deck : List Card
         -- graveyard : List Card
         -- board : PossibleBoard p
@@ -165,15 +146,15 @@ data AnyCardState (f : Set → Set) : (@0 c : Card) → Set where
 -- isUntappedWalker : ∀ {cardType : Set} {{stfc : StateForCard cardType}} → CardPosition cardType → Bool
 -- isUntappedWalker {ct} ⦃ record { correspondingCard = Walker} ⦄ (OnBattlefield record { isTapped = false })= {!   !}
 -- isUntappedWalker {ct} ⦃ record { correspondingCard = Elixir} ⦄ = {!   !}
-isUntappedWalker : ∀ {@0 c} → AnyCardState CardPosition c → Bool
-isUntappedWalker (WalkerCard (OnBattlefield record { isTapped = false })) = true
+isUntappedWalker : ∀ {@0 c} → CardPosition c → Bool
+isUntappedWalker (OnBattlefield (CWalkerState record { isTapped = false })) = true
 isUntappedWalker _ = false
 
 {-# COMPILE AGDA2HS isUntappedWalker #-}
 
 
-isTappableWalker : ∀ {@0 c} → AnyCardState CardPosition c → Bool
-isTappableWalker (WalkerCard (OnBattlefield record { isTapped = false ; summoningSickness = false })) = true
+isTappableWalker : ∀ {@0 c} → CardPosition c → Bool
+isTappableWalker (OnBattlefield (CWalkerState record { isTapped = false ; summoningSickness = false })) = true
 isTappableWalker _ = false
 {-# COMPILE AGDA2HS isTappableWalker #-}
 
@@ -184,16 +165,11 @@ record AttackContext : Set where
         availableWalker1 : Bool
         availableWalker2 : Bool
 
-attackContextFor : ∀ {@0 c} → AnyCardState PlayerState c → AttackContext
-attackContextFor (WalkerCard ps) = record
+attackContextFor : ∀ {@0 c} → PlayerState c → AttackContext
+attackContextFor ps = record
     { availableThopters = untappedUnsickThopters ps
-    ; availableWalker1 = isTappableWalker (WalkerCard (walker1State ps))
-    ; availableWalker2 = isTappableWalker (WalkerCard (card2State ps))
-    }
-attackContextFor (ElixirCard ps) = record
-    { availableThopters = untappedUnsickThopters ps
-    ; availableWalker1 = isTappableWalker (WalkerCard (walker1State ps))
-    ; availableWalker2 = isTappableWalker (ElixirCard (card2State ps))
+    ; availableWalker1 = isTappableWalker (walker1State ps)
+    ; availableWalker2 = isTappableWalker (card2State ps)
     }
 
 
@@ -204,16 +180,11 @@ record BlockerContext : Set where
         availableWalker1 : Bool
         availableWalker2 : Bool
 
-blockerContextFor : ∀ {c} → AnyCardState PlayerState c → BlockerContext
-blockerContextFor (WalkerCard ps) = record
+blockerContextFor : ∀ {c} → PlayerState c → BlockerContext
+blockerContextFor ps = record
     { availableThopters = untappedUnsickThopters ps + summoningSickThopters ps
-    ; availableWalker1 = isUntappedWalker (WalkerCard (walker1State ps))
-    ; availableWalker2 = isUntappedWalker (WalkerCard (card2State ps))
-    }
-blockerContextFor (ElixirCard ps) = record
-    { availableThopters = untappedUnsickThopters ps + summoningSickThopters ps
-    ; availableWalker1 = isUntappedWalker (WalkerCard (walker1State ps))
-    ; availableWalker2 = isUntappedWalker (ElixirCard (card2State ps))
+    ; availableWalker1 = isUntappedWalker (walker1State ps)
+    ; availableWalker2 = isUntappedWalker (card2State ps)
     }
 
 -- TODO: make this depend on the rest of the state
@@ -319,8 +290,8 @@ data Phase : Set where
     PostCombatMain : Phase
 {-# COMPILE AGDA2HS Phase deriving (Show, Eq, Ord) #-}
 
-PlayerStateFor : Player → Set
-PlayerStateFor p = PlayerState (CardState (card2ForPlayer p))
+-- PlayerStateFor : Player → Set
+-- PlayerStateFor p = PlayerState (CardState (card2ForPlayer p))
 
 record GameState : Set where
     pattern
@@ -328,21 +299,21 @@ record GameState : Set where
     field
         phase : Phase
         activePlayer : Player
-        ozzieState : PlayerState ElixirState
-        brigyeetzState : PlayerState WalkerState
+        ozzieState : PlayerState Ozzie
+        brigyeetzState : PlayerState Brigyeetz
         lastPlayerPassed : Bool
 
     opponent : Player
     opponent = opponentOf activePlayer
 
 
-    stateOfPlayer : (p : Player) → PlayerStateFor p
+    stateOfPlayer : (p : Player) → PlayerState p
     stateOfPlayer Ozzie = ozzieState
     stateOfPlayer Brigyeetz = brigyeetzState
 
-    activePlayerState : PlayerStateFor activePlayer
+    activePlayerState : PlayerState activePlayer
     activePlayerState = stateOfPlayer activePlayer
-    opponentState : PlayerStateFor opponent
+    opponentState : PlayerState opponent
     opponentState = stateOfPlayer opponent
 
 open GameState public
@@ -351,17 +322,17 @@ open GameState public
 
 module _ (s : GameState) where
         -- record s { activePlayerState = f (activePlayerState s)}
-    setPlayerState : ∀ (p : Player) → PlayerStateFor p → GameState
+    setPlayerState : ∀ (p : Player) → PlayerState p → GameState
     setPlayerState Ozzie s1 = record s { ozzieState = s1 ; lastPlayerPassed = false}
     setPlayerState Brigyeetz s1 = record s { brigyeetzState = s1 ; lastPlayerPassed = false}
 
-    withPlayer : ∀ (p : Player) → (∀ c → PlayerState c → PlayerState c) → GameState
-    withPlayer Ozzie f = record s { ozzieState = f ElixirState (ozzieState s) ; lastPlayerPassed = false}
-    withPlayer Brigyeetz f = record s { brigyeetzState = f _ (brigyeetzState s) ; lastPlayerPassed = false}
+    withPlayer : ∀ (p : Player) → (PlayerState p → PlayerState p) → GameState
+    withPlayer Ozzie f = record s { ozzieState = f (ozzieState s) ; lastPlayerPassed = false}
+    withPlayer Brigyeetz f = record s { brigyeetzState = f (brigyeetzState s) ; lastPlayerPassed = false}
     -- withPlayer p f = setPlayerState p (f (stateOfPlayer s p))
 
     -- sp = stateOfPlayer p
-    withPlayerP : ∀ (p : Player) (P : PlayerStateFor p → Set) → (P (stateOfPlayer s p)) → ((s : PlayerStateFor p) → P s → PlayerStateFor p) → GameState
+    withPlayerP : ∀ (p : Player) (P : PlayerState p → Set) → (P (stateOfPlayer s p)) → ((s : PlayerState p) → P s → PlayerState p) → GameState
     withPlayerP p P arg f = setPlayerState p (f sp arg)
       where sp = stateOfPlayer s p
     -- withPlayer Ozzie f = record s { ozzieState = f ozzieState ; lastPlayerPassed = false}
@@ -378,7 +349,7 @@ noThopters = record
     }
 {-# COMPILE AGDA2HS noThopters #-}
 
-ozzieStart : PlayerState ElixirState
+ozzieStart : PlayerState Ozzie
 ozzieStart = record
     { healthTotal = 20
     ; floatingMana = false
@@ -390,7 +361,7 @@ ozzieStart = record
     }
 {-# COMPILE AGDA2HS ozzieStart #-}
 
-brigyeetzStart : PlayerState WalkerState
+brigyeetzStart : PlayerState Brigyeetz
 brigyeetzStart = record
     { healthTotal = 20
     ; floatingMana = false
@@ -421,11 +392,11 @@ initialGameState p = record
 drop = Data.List.drop
 
 -- We ignore invalid states here
-drawCardForPlayer : ∀ p → PlayerState p → PlayerState p
-drawCardForPlayer p s = record s {deck = new₋deck ; walker1State = new₋walker1State (deck s) (walker1State s) ; card2State = new₋card2State (deck s) (card2State s) }
+drawCardForPlayer : ∀ {p} → PlayerState p → PlayerState p
+drawCardForPlayer {p} s = record s {deck = new₋deck ; walker1State = new₋walker1State (deck s) (walker1State s) ; card2State = new₋card2State (deck s) (card2State s) }
   where
     new₋deck = drop 1 (deck s)
-    new₋walker1State : List Card → CardPosition WalkerState → CardPosition WalkerState
+    new₋walker1State : List Card → CardPosition Walker → CardPosition Walker
     new₋walker1State (Walker ∷ _) _ = InHand
     new₋walker1State _ cardState = cardState
     new₋card2State : ∀ {c} → List Card → CardPosition c → CardPosition c
@@ -453,7 +424,7 @@ data ManaCost : Set where
 {-# COMPILE AGDA2HS ManaCost #-}
 
 -- We do not allow more than one mana source, since only one exists in this matchup
-module _ {p} (s : PlayerState p) where
+module _ {@0 p} (s : PlayerState p) where
     HasMana : ManaCost → Set
     HasMana One = T (isCityUntapped s ∨ floatingMana s)
     HasMana Two = T (isCityUntapped s)
