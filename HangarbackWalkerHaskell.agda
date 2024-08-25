@@ -406,7 +406,6 @@ initialGameState p = record
     }
 {-# COMPILE AGDA2HS initialGameState #-}
 
-{-
 
 -- isWinning = currentlyWinning ∨ ∃ myMove , ∀ opponentMove , isWinning
 -- Above logic is LTL
@@ -415,20 +414,22 @@ initialGameState p = record
 
 -- We ignore invalid states here
 drawCardForPlayer : ∀ {p} → PlayerState p → PlayerState p
-drawCardForPlayer {p} s = record s {deck = new-deck ; walker1State = new-walker1State (deck s) (walker1State s) ; card2State = new-card2State (deck s) (card2State s) }
+drawCardForPlayer {p} s = record s {deck = new₋deck ; walker1State = new₋walker1State (deck s) (walker1State s) ; card2State = new₋card2State (deck s) (card2State s) }
   where
-    new-deck = drop 1 (deck s)
-    new-walker1State : List Card → CardPosition Walker → CardPosition Walker
-    new-walker1State (Walker ∷ _) _ = InHand
-    new-walker1State _ cardState = cardState
-    new-card2State : ∀ {c} → List Card → CardPosition c → CardPosition c
-    new-card2State (Elixir ∷ _) _ = InHand
-    new-card2State _ cardState = cardState
+    new₋deck = drop 1 (deck s)
+    new₋walker1State : List Card → CardPosition WalkerState → CardPosition WalkerState
+    new₋walker1State (Walker ∷ _) _ = InHand
+    new₋walker1State _ cardState = cardState
+    new₋card2State : ∀ {c} → List Card → CardPosition c → CardPosition c
+    new₋card2State (Elixir ∷ _) _ = InHand
+    new₋card2State _ cardState = cardState
 -- drawCardForPlayer s@record {deck = []} = s
 -- drawCardForPlayer s@record {deck = (Walker ∷ xs)} = record s {walker1State = InHand ; deck = xs}
 -- drawCardForPlayer s@record {deck = (Elixir ∷ xs)} = record s {card2State = InHand ; deck = xs}
+{-# COMPILE AGDA2HS drawCardForPlayer #-}
 
 
+{-
 drawCard : GameState → GameState
 drawCard s = withPlayer s (GameState.activePlayer s) drawCardForPlayer
 
@@ -589,14 +590,14 @@ reduceHealthTotal n s = record s { healthTotal = healthTotal s ∸ n }
 module _ {p} {pps : AttackContext} {bc : BlockerContext} where
     damageFromWalker1 : (CardPosition Walker) → (a : AttackerInfo pps) → BlockerInfo pps a bc → ℕ
     damageFromWalker1 wSt record { walker1Attack = nothing} b = 0
-    damageFromWalker1 wSt record { walker1Attack = just _ } record { thopter-block-walker1 = just _ } = 0
+    damageFromWalker1 wSt record { walker1Attack = just _ } record { thopter₋block₋walker1 = just _ } = 0
     damageFromWalker1 wSt record { walker1Attack = just _ } record { walker1Block = just (blockWalker1 _ , _) } = 0
     damageFromWalker1 wSt record { walker1Attack = just _ } record { walker2Block = just (blockWalker1 _ , _) } = 0
     damageFromWalker1 wSt record { walker1Attack = just _ } _ = walkerSize wSt
 
     damageFromWalker2 : ∀ {c} → (CardPosition c) → (a : AttackerInfo pps) → BlockerInfo pps a bc → ℕ
     damageFromWalker2 wSt record { walker2Attack = nothing} b = 0
-    damageFromWalker2 wSt record { walker2Attack = just _ } record { thopter-block-walker2 = just _ } = 0
+    damageFromWalker2 wSt record { walker2Attack = just _ } record { thopter₋block₋walker2 = just _ } = 0
     damageFromWalker2 wSt record { walker2Attack = just _ } record { walker1Block = just (blockWalker2 _ , _) } = 0
     damageFromWalker2 wSt record { walker2Attack = just _ } record { walker2Block = just (blockWalker2 _ , _) } = 0
     damageFromWalker2 wSt record { walker2Attack = just _ } _ = walkerSize wSt
@@ -775,8 +776,8 @@ losingGame p st = ∀ action → winningGame (opponentOf p) (performAction st p 
 --         (aCastWalker2 x x₁ hasMana isInHand) → {!   !}
 --         aDoNothing → {!   !}))))
 
--- game-with-big-walkers : GameState
--- game-with-big-walkers = game (combat CombatStart) Brigyeetz
+-- game₋with₋big₋walkers : GameState
+-- game₋with₋big₋walkers = game (combat CombatStart) Brigyeetz
 --     (record
 --      { healthTotal = {!   !}
 --      ; floatingMana = {!   !}
@@ -810,8 +811,8 @@ HasBigWalkers s@record
     } = (health ≤ size1) × (health ≤ size2) × (thopters ≡ noThopters)
 HasBigWalkers _ = ⊥
 
-big-Walker-game-wins : ∀ s → HasBigWalkers s → winningGame Brigyeetz s
-big-Walker-game-wins s@record
+big₋Walker₋game₋wins : ∀ s → HasBigWalkers s → winningGame Brigyeetz s
+big₋Walker₋game₋wins s@record
     { phase = combat CombatStart
     ; activePlayer = Brigyeetz
     ; ozzieState = record { healthTotal = health ; thopters = noThopters ; isCityUntapped = false }
@@ -822,18 +823,18 @@ big-Walker-game-wins s@record
         }
     } (big1 , big2 , refl) = willWin nonZero
         ((aDeclareAttackers refl refl (record { thoptersAttack = 0 , z≤n ; walker1Attack = just tt ; walker2Attack = just tt })) , λ where
-            -- (aDeclareBlockers _attck refl refl record { thopter-thopter-blocks = th-th-bl ; thopter-block-walker1 = tbw1 ; thopter-block-walker2 = tbw2 ; total-thopters = total-thopters ; walker1Block = walker1Block ; walker2Block = walker2Block }) → {! tbw1 total-thopters  !}
-            (aDeclareBlockers _attck refl refl record { thopter-block-walker1 = just x ; total-thopters = () })
-            (aDeclareBlockers _attck refl refl record { thopter-block-walker1 = nothing ; thopter-block-walker2 = just x ; total-thopters = () })
-            (aDeclareBlockers _attck refl refl record { thopter-thopter-blocks = suc _ , _ ; thopter-block-walker1 = nothing ; thopter-block-walker2 = nothing ; total-thopters = () })
-            (aDeclareBlockers _attck refl refl record { thopter-thopter-blocks = 0 , _ ; thopter-block-walker1 = nothing  ; thopter-block-walker2 = nothing ; walker1Block = w1b ; walker2Block = just (_ , ()) })
-            (aDeclareBlockers _attck refl refl record { thopter-thopter-blocks = 0 , _ ; thopter-block-walker1 = nothing  ; thopter-block-walker2 = nothing ; walker1Block = nothing ; walker2Block = nothing }) → willWin nonZero (aDoNothing , (λ where
+            -- (aDeclareBlockers _attck refl refl record { thopter₋thopter₋blocks = th₋th₋bl ; thopter₋block₋walker1 = tbw1 ; thopter₋block₋walker2 = tbw2 ; total₋thopters = total₋thopters ; walker1Block = walker1Block ; walker2Block = walker2Block }) → {! tbw1 total₋thopters  !}
+            (aDeclareBlockers _attck refl refl record { thopter₋block₋walker1 = just x ; total₋thopters = () })
+            (aDeclareBlockers _attck refl refl record { thopter₋block₋walker1 = nothing ; thopter₋block₋walker2 = just x ; total₋thopters = () })
+            (aDeclareBlockers _attck refl refl record { thopter₋thopter₋blocks = suc _ , _ ; thopter₋block₋walker1 = nothing ; thopter₋block₋walker2 = nothing ; total₋thopters = () })
+            (aDeclareBlockers _attck refl refl record { thopter₋thopter₋blocks = 0 , _ ; thopter₋block₋walker1 = nothing  ; thopter₋block₋walker2 = nothing ; walker1Block = w1b ; walker2Block = just (_ , ()) })
+            (aDeclareBlockers _attck refl refl record { thopter₋thopter₋blocks = 0 , _ ; thopter₋block₋walker1 = nothing  ; thopter₋block₋walker2 = nothing ; walker1Block = nothing ; walker2Block = nothing }) → willWin nonZero (aDoNothing , (λ where
                 aDoNothing → hasWon (m≤n⇒m∸n≡0 {health} {size1 + size2} (≤-trans big1 (m≤m+n size1 size2)))))
-            (aDeclareBlockers _attck refl refl record { thopter-thopter-blocks = 0 , _ ; thopter-block-walker1 = nothing  ; thopter-block-walker2 = nothing ; walker1Block = just (blockWalker1 tgt , pf) ; walker2Block = nothing }) → willWin nonZero (aDoNothing , λ where
+            (aDeclareBlockers _attck refl refl record { thopter₋thopter₋blocks = 0 , _ ; thopter₋block₋walker1 = nothing  ; thopter₋block₋walker2 = nothing ; walker1Block = just (blockWalker1 tgt , pf) ; walker2Block = nothing }) → willWin nonZero (aDoNothing , λ where
                 aDoNothing → hasWon (m≤n⇒m∸n≡0 big2))
-            (aDeclareBlockers _attck refl refl record { thopter-thopter-blocks = 0 , _ ; thopter-block-walker1 = nothing  ; thopter-block-walker2 = nothing ; walker1Block = just (blockWalker2 tgt , pf) ; walker2Block = nothing }) → willWin nonZero (aDoNothing , λ where
+            (aDeclareBlockers _attck refl refl record { thopter₋thopter₋blocks = 0 , _ ; thopter₋block₋walker1 = nothing  ; thopter₋block₋walker2 = nothing ; walker1Block = just (blockWalker2 tgt , pf) ; walker2Block = nothing }) → willWin nonZero (aDoNothing , λ where
                 aDoNothing → hasWon (Relation.Binary.PropositionalEquality.trans (cong (health ∸_) (+-identityʳ size1)) (m≤n⇒m∸n≡0 {health} {size1} big1)))
-            -- (aDeclareBlockers _attck refl refl record { thopter-thopter-blocks = thopter-thopter-blocks ; thopter-block-walker1 = thopter-block-walker1 ; thopter-block-walker2 = thopter-block-walker2 ; total-thopters = total-thopters ; walker1Block = walker1Block ; walker2Block = walker2Block }) → {! thopter-thopter-blocks thopter-block-walker1 thopter-block-walker2 total-thopters walker1Block walker2Block  !}
+            -- (aDeclareBlockers _attck refl refl record { thopter₋thopter₋blocks = thopter₋thopter₋blocks ; thopter₋block₋walker1 = thopter₋block₋walker1 ; thopter₋block₋walker2 = thopter₋block₋walker2 ; total₋thopters = total₋thopters ; walker1Block = walker1Block ; walker2Block = walker2Block }) → {! thopter₋thopter₋blocks thopter₋block₋walker1 thopter₋block₋walker2 total₋thopters walker1Block walker2Block  !}
             aDoNothing → willWin nonZero $ aDoNothing , λ where
                 aDoNothing → willWin nonZero $ aDoNothing , λ where
                     aDoNothing → hasWon (m≤n⇒m∸n≡0 {health} {size1 + size2} (≤-trans big1 (m≤m+n size1 size2))))
