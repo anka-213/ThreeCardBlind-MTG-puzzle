@@ -97,14 +97,6 @@ card2ForPlayer : Player → Card
 card2ForPlayer ozzie = elixir
 card2ForPlayer brigyeetz = walker
 
-card2CastingCost : Player → ℕ
-card2CastingCost ozzie = 1
-card2CastingCost brigyeetz = 2
-
-card2ActivationCost : Player → ℕ
-card2ActivationCost ozzie = 2
-card2ActivationCost brigyeetz = 1
-
 record PlayerState (p : Player) : Set where
     pattern
     field
@@ -572,19 +564,6 @@ doNothing p s@record {lastPlayerPassed = true} = endPhase (record s { lastPlayer
 -- Combat actions: Faster than instants
 -- DoNothing: Might be worth splitting since we need to match on it anyways
 
-module _ {p} (ps : PlayerState p) where
-    data MainPhaseAction : Set where
-        aCastWalker1 : ∀                         (hasMana : HasMana ps 2) (isInHand : walker1State ps ≡ inHand) → MainPhaseAction
-        aCastCard2 : ∀ (hasMana : HasMana ps (card2CastingCost p)) (isInHand : card2State   ps ≡ inHand) → MainPhaseAction
-        -- aCastWalker2 : ∀ (isBrg : p ≡ brigyeetz) (hasMana : HasMana ps 2) (isInHand : card2State   ps ≡ inHand) → MainPhaseAction
-        -- aCastElixir  : ∀ (isOzz : p ≡ ozzie)     (hasMana : HasMana ps 1) (isInHand : card2State   ps ≡ inHand) → MainPhaseAction
-
-    data PlayerAction : Set where
-        aActivateWalker1 : ∀                          (hasMana : HasMana ps 1) (canActivate : canActivateWalker (walker1State ps)) → PlayerAction
-        aActivateWalker2 : ∀ (isBrg : p ≡ brigyeetz)  (hasMana : HasMana ps 1) (canActivate : canActivateWalker2 isBrg (card2State ps)) → PlayerAction
-        -- aActivateElixir  : ∀ (isOzz : p ≡ ozzie)      (hasMana : HasMana ps 2) (canActivate : card2State ps ≡ onBattlefield elixirState) → PlayerAction
-
-
 -- Actions
 module _ (s : GameState) where
     open GameState s
@@ -594,22 +573,25 @@ module _ (s : GameState) where
 
     -- Maybe split into tree of actions with categories to make it easier to restrict when actions can be taken
     -- Maybe add extra action to tapLand or integrate it into the actions that take two mana.
+    -- Maybe disallow tapping land without using mana (e.g. by using a "has mana" proof, that either picks from pool or land)
     data Action : Player → Set where
-        aPlayerAction : ∀ {p} → PlayerAction (stateOfPlayer p) → Action p
-        aMainPhaseAction : ∀ {p} (isActive : p ≡ activePlayer) (inMain : inMainPhase) → MainPhaseAction (stateOfPlayer p) → Action p
+        aCastWalker1 : ∀ {p} (isActive : p ≡ activePlayer) (inMain : inMainPhase) (hasMana : HasMana (stateOfPlayer p) 2) (isInHand : walker1State (stateOfPlayer p) ≡ inHand) → Action p
+        aCastWalker2 : ∀ (isActive : activePlayer ≡ brigyeetz) (inMain : inMainPhase) (hasMana : HasMana brigyeetzState 2) (isInHand : card2State brigyeetzState ≡ inHand) → Action brigyeetz
+        aCastElixir : ∀ (isActive : activePlayer ≡ ozzie) (inMain : inMainPhase) (hasMana : HasMana ozzieState 1) (isInHand : card2State ozzieState ≡ inHand) → Action ozzie
+        aActivateWalker1 : ∀ {p} (hasMana : HasMana (stateOfPlayer p) 1) (canActivate : canActivateWalker (walker1State (stateOfPlayer p))) → Action p
+        aActivateWalker2 : ∀ (hasMana : HasMana brigyeetzState 1) (canActivate : canActivateWalker (card2State brigyeetzState)) → Action brigyeetz
+        aActivateElixir : ∀ (hasMana : HasMana ozzieState 2) (canActivate : card2State ozzieState ≡ onBattlefield elixirState) → Action ozzie
         aDeclareAttackers : ∀ {p} (inCombat : phase ≡ combat CombatStart) (isActive : p ≡ activePlayer) (atcks : AttackerInfo (attackContextFor activePlayerState)) → Action p
         aDeclareBlockers : ∀ {p} {pps : AttackContext} (atcks : AttackerInfo pps) (inCombat2 : phase ≡ combat (DeclaredAttackers pps atcks)) (isOpponent : opponentOf p ≡ activePlayer) (blcks : BlockerInfo pps atcks (blockerContextFor opponentState)) → Action p
         aDoNothing : ∀ {p} → Action p
 
     performAction : ∀ p → Action p → GameState
-    -- performAction p (aCastWalker1 curPl inMain hasMana isInHand) = withPlayerCost s p 2 hasMana castWalker1
-    -- performAction p (aCastWalker2 currBrigyeetz inMain hasMana isInHand) = withPlayerCost s brigyeetz 2 hasMana castWalker2
-    -- performAction p (aCastElixir currOzzie inMain hasMana isInHand) = withPlayerCost s ozzie 1 hasMana castElixir
-    -- performAction p (aActivateWalker1 hasMana canActivate) = setPlayerState s p (activateWalker1 (stateOfPlayer p) hasMana canActivate)
-    -- performAction p (aActivateWalker2 hasMana canActivate) = setPlayerState s brigyeetz (activateWalker2 brigyeetzState hasMana canActivate)
-    -- performAction p (aActivateElixir hasMana canActivate) = withPlayerCost s ozzie 2 hasMana activateElixir
-    performAction p (aPlayerAction pAct) = withPlayer s p {!performPlayerAction pAct!}
-    performAction p (aMainPhaseAction isActive inMain mpAct) = withPlayer s p {!performMainPhaseAction mpAct!}
+    performAction p (aCastWalker1 curPl inMain hasMana isInHand) = withPlayerCost s p 2 hasMana castWalker1
+    performAction p (aCastWalker2 currBrigyeetz inMain hasMana isInHand) = withPlayerCost s brigyeetz 2 hasMana castWalker2
+    performAction p (aCastElixir currOzzie inMain hasMana isInHand) = withPlayerCost s ozzie 1 hasMana castElixir
+    performAction p (aActivateWalker1 hasMana canActivate) = setPlayerState s p (activateWalker1 (stateOfPlayer p) hasMana canActivate)
+    performAction p (aActivateWalker2 hasMana canActivate) = setPlayerState s brigyeetz (activateWalker2 brigyeetzState hasMana canActivate)
+    performAction p (aActivateElixir hasMana canActivate) = withPlayerCost s ozzie 2 hasMana activateElixir
     performAction p (aDeclareAttackers phs curPl atcks) = withPlayer (changePhase s (combat (DeclaredAttackers _ atcks))) activePlayer (tapAttackers atcks) -- record s { phase =  ; lastPlayerPassed = false}
     performAction p (aDeclareBlockers atcks phs curPl blcks) = changePhase s (combat (DeclaredBlockers _ atcks blcks))
     performAction p (aDoNothing) = doNothing p s
@@ -620,7 +602,6 @@ module _ (s : GameState) where
     data Step : (s : GameState) → Set where
         doAction : ∀ p → (a : Action p) → Step (performAction p a)
 
-{-
 
 gameExample : GameState → GameState → Set
 gameExample = Star Step
@@ -802,5 +783,3 @@ big-walker-game-wins s@record
 
 -- Goal: Prove isDraw or losingGame or winningGame for both initial games
 -- Method: Find an invariant that holds that can be used to prove that any game with this invariant will be a win/loss for some player
-
--- -}
