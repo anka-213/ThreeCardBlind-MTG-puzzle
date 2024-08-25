@@ -303,21 +303,23 @@ record GameState : Set where
         brigyeetzState : PlayerState Brigyeetz
         lastPlayerPassed : Bool
 
-    opponent : Player
-    opponent = opponentOf activePlayer
+open GameState public
+{-# COMPILE AGDA2HS GameState deriving (Show, Eq, Ord) #-}
 
+module _ (s : GameState) where
+    opponent : Player
+    opponent = opponentOf (activePlayer s)
 
     stateOfPlayer : (p : Player) → PlayerState p
-    stateOfPlayer Ozzie = ozzieState
-    stateOfPlayer Brigyeetz = brigyeetzState
+    stateOfPlayer Ozzie = ozzieState s
+    stateOfPlayer Brigyeetz = brigyeetzState s
 
-    activePlayerState : PlayerState activePlayer
-    activePlayerState = stateOfPlayer activePlayer
+    activePlayerState : PlayerState (activePlayer s)
+    activePlayerState = stateOfPlayer (activePlayer s)
     opponentState : PlayerState opponent
     opponentState = stateOfPlayer opponent
 
-open GameState public
-{-# COMPILE AGDA2HS GameState deriving (Show, Eq, Ord) #-}
+{-# COMPILE AGDA2HS stateOfPlayer #-}
 -- TODO: Maybe add priority field to game state to tell who can do an action
 
 module _ (s : GameState) where
@@ -338,7 +340,8 @@ module _ (s : GameState) where
     -- withPlayer Ozzie f = record s { ozzieState = f ozzieState ; lastPlayerPassed = false}
     -- withPlayer Brigyeetz f = record s { brigyeetzState = f brigyeetzState ; lastPlayerPassed = false}
 
-{-# COMPILE AGDA2HS withPlayer #-}
+    {-# COMPILE AGDA2HS withPlayer #-}
+    {-# COMPILE AGDA2HS setPlayerState #-}
 -- open GameState
 
 noThopters : ThopterState
@@ -442,36 +445,36 @@ module _ {@0 p} (s : PlayerState p) where
 
 {-# COMPILE AGDA2HS consumeMana #-}
 
-{-
 module _ (s : GameState) where
-    open GameState s
-    withPlayerCost : ∀ (p : Player) n → HasMana (stateOfPlayer p) n → (PlayerState p → PlayerState p) → GameState
-    withPlayerCost p n hasMana f = setPlayerState s p (f (consumeMana (stateOfPlayer p) n hasMana))
+    withPlayerCost : ∀ (p : Player) n → @0 HasMana (stateOfPlayer s p) n → (PlayerState p → PlayerState p) → GameState
+    withPlayerCost p n hasMana f = setPlayerState s p (f (consumeMana (stateOfPlayer s p) n hasMana))
 
+{-# COMPILE AGDA2HS withPlayerCost #-}
 
 -- tapLand : ∀ {p} → PlayerState p → PlayerState p
 -- tapLand s = record s { isCityUntapped = false ; floatingMana = 2 }
 
 castWalker1 : ∀ {p} → PlayerState p → PlayerState p
-castWalker1 s = record s {  walker1State = onBattlefield walkerInitialState }
+castWalker1 s = record s {  walker1State = OnBattlefield (CWalkerState walkerInitialState) }
 
 castWalker2 : PlayerState Brigyeetz → PlayerState Brigyeetz
-castWalker2 s = record s { card2State = onBattlefield walkerInitialState }
+castWalker2 s = record s { card2State = OnBattlefield (CWalkerState walkerInitialState) }
 
 castElixir : PlayerState Ozzie → PlayerState Ozzie
-castElixir s = record s { card2State = onBattlefield elixirState }
+castElixir s = record s { card2State = OnBattlefield CElixirState }
 
+{-
 data canActivateWalker : CardPosition Walker → Set where
-  valid : ∀ n → canActivateWalker (onBattlefield (record { isTapped = false ; summoningSickness = false ; nCounters = n}))
+  valid : ∀ n → canActivateWalker (OnBattlefield (record { isTapped = false ; summoningSickness = false ; nCounters = n}))
 
 canActivateWalker2 : ∀ {p} → p ≡ Brigyeetz → CardPosition (card2ForPlayer p) → Set
 canActivateWalker2 refl s = canActivateWalker s
 
 -- activateWalker1 : ∀ {p} → canActivateWalker  →  PlayerState p → PlayerState p
--- activateWalker1 _ s = record s { floatingMana = false ; walker1State = onBattlefield walkerInitialState }
+-- activateWalker1 _ s = record s { floatingMana = false ; walker1State = OnBattlefield walkerInitialState }
 
 activateWalker : ∀ (s : CardPosition Walker) (canActivate : canActivateWalker s) → CardPosition Walker
-activateWalker .(onBattlefield (record { isTapped = false ; summoningSickness = false ; nCounters = n })) (valid n) = onBattlefield record { isTapped = true ; summoningSickness = false ; nCounters = 1 + n}
+activateWalker .(OnBattlefield (record { isTapped = false ; summoningSickness = false ; nCounters = n })) (valid n) = OnBattlefield record { isTapped = true ; summoningSickness = false ; nCounters = 1 + n}
 
 activateWalker1 : ∀ {p} (s : PlayerState p) (hasMana : HasMana s 1) (canActivate : canActivateWalker (walker1State s)) → PlayerState p
 activateWalker1 s hasMana ca = record (consumeMana s 1 hasMana) { walker1State = activateWalker (walker1State s) ca}
@@ -486,7 +489,7 @@ activateElixir s = record s { healthTotal = 5 + healthTotal s ; walker1State = g
     graveyard2deck InHand = InHand
     graveyard2deck inGraveyard = inDeck -- TODO: Shuffle
     graveyard2deck inDeck = inDeck -- TODO: Shuffle
-    graveyard2deck (onBattlefield x) = onBattlefield x
+    graveyard2deck (OnBattlefield x) = OnBattlefield x
 
     walkerPosition = graveyard2deck (walker1State s)
 
@@ -516,7 +519,7 @@ mapCard : ∀ {c} → (CardState c → CardState c) → CardPosition c → CardP
 mapCard f InHand = InHand
 mapCard f inGraveyard = inGraveyard
 mapCard f inDeck = inDeck
-mapCard f (onBattlefield x) = onBattlefield (f x)
+mapCard f (OnBattlefield x) = OnBattlefield (f x)
 
 tapCard : ∀ {c} → CardState c → CardState c
 tapCard {Walker} st = record st { isTapped = true }
@@ -567,7 +570,7 @@ walkerSize : ∀ {c} → CardPosition c → ℕ
 walkerSize {Walker} InHand = 0
 walkerSize {Walker} inGraveyard = 0
 walkerSize {Walker} inDeck = 0
-walkerSize {Walker} (onBattlefield x) = WalkerState.nCounters x
+walkerSize {Walker} (OnBattlefield x) = WalkerState.nCounters x
 walkerSize {Elixir} s = 0
 
 
@@ -631,7 +634,7 @@ module _ (s : GameState) where
         aCastElixir : ∀ (isActive : activePlayer ≡ Ozzie) (inMain : inMainPhase) (hasMana : HasMana ozzieState 1) (isInHand : card2State ozzieState ≡ InHand) → Action Ozzie
         aActivateWalker1 : ∀ {p} (hasMana : HasMana (stateOfPlayer p) 1) (canActivate : canActivateWalker (walker1State (stateOfPlayer p))) → Action p
         aActivateWalker2 : ∀ (hasMana : HasMana brigyeetzState 1) (canActivate : canActivateWalker (card2State brigyeetzState)) → Action Brigyeetz
-        aActivateElixir : ∀ (hasMana : HasMana ozzieState 2) (canActivate : card2State ozzieState ≡ onBattlefield elixirState) → Action Ozzie
+        aActivateElixir : ∀ (hasMana : HasMana ozzieState 2) (canActivate : card2State ozzieState ≡ OnBattlefield elixirState) → Action Ozzie
         aDeclareAttackers : ∀ {p} (inCombat : phase ≡ combat CombatStart) (isActive : p ≡ activePlayer) (atcks : AttackerInfo (attackContextFor activePlayerState)) → Action p
         aDeclareBlockers : ∀ {p} {pps : AttackContext} (atcks : AttackerInfo pps) (inCombat2 : phase ≡ combat (DeclaredAttackers pps atcks)) (isOpponent : opponentOf p ≡ activePlayer) (blcks : BlockerInfo pps atcks (blockerContextFor opponentState)) → Action p
         aDoNothing : ∀ {p} → Action p
@@ -665,52 +668,52 @@ ex1 = begin
     initialGameState Ozzie ⟶⟨ doAction Ozzie (aCastWalker1 refl main1 refl refl) ⟩
     game PreCombatMain Ozzie (record ozzieStart
         { isCityUntapped = false
-        ; walker1State = onBattlefield walkerInitialState
+        ; walker1State = OnBattlefield walkerInitialState
         }) brigyeetzStart false ⟶⟨ doAction Ozzie (aDoNothing) ⟩
     _ ⟶⟨ doAction Brigyeetz aDoNothing ⟩
     game (combat CombatStart) Ozzie (record ozzieStart
         { isCityUntapped = false
-        ; walker1State = onBattlefield walkerInitialState
+        ; walker1State = OnBattlefield walkerInitialState
         }) brigyeetzStart false ⟶⟨ doAction Ozzie aDoNothing ⟩
   game (combat CombatStart) Ozzie (record ozzieStart
         { isCityUntapped = false
-        ; walker1State = onBattlefield walkerInitialState
+        ; walker1State = OnBattlefield walkerInitialState
         }) brigyeetzStart true ⟶⟨ doAction Brigyeetz aDoNothing ⟩
-  game postCombatMain Ozzie (record ozzieStart { isCityUntapped = false ; walker1State = onBattlefield walkerInitialState
+  game postCombatMain Ozzie (record ozzieStart { isCityUntapped = false ; walker1State = OnBattlefield walkerInitialState
         }) brigyeetzStart false ⟶⟨ doAction Ozzie aDoNothing ⟩
-  game postCombatMain Ozzie (record ozzieStart { isCityUntapped = false ; walker1State = onBattlefield walkerInitialState
+  game postCombatMain Ozzie (record ozzieStart { isCityUntapped = false ; walker1State = OnBattlefield walkerInitialState
         }) brigyeetzStart true ⟶⟨ doAction Brigyeetz aDoNothing ⟩
-  game PreCombatMain Brigyeetz (record ozzieStart { isCityUntapped = false ; walker1State = onBattlefield walkerInitialState
+  game PreCombatMain Brigyeetz (record ozzieStart { isCityUntapped = false ; walker1State = OnBattlefield walkerInitialState
         }) brigyeetzStart false ⟶⟨ doAction Brigyeetz (aCastWalker2 refl main1 (refl) refl) ⟩
-  game PreCombatMain Brigyeetz (record ozzieStart { isCityUntapped = false ; walker1State = onBattlefield walkerInitialState
-        }) (record brigyeetzStart {isCityUntapped = false ; card2State = onBattlefield walkerInitialState}) false ⟶⟨ doAction Brigyeetz aDoNothing ⟩
-  game PreCombatMain Brigyeetz (record ozzieStart { isCityUntapped = false ; walker1State = onBattlefield walkerInitialState
-        }) (record brigyeetzStart {isCityUntapped = false ; card2State = onBattlefield walkerInitialState}) true ⟶⟨ doAction Ozzie aDoNothing ⟩
-  game (combat CombatStart) Brigyeetz (record ozzieStart { isCityUntapped = false ; walker1State = onBattlefield walkerInitialState
-        }) (record brigyeetzStart {isCityUntapped = false ; card2State = onBattlefield walkerInitialState}) false ⟶⟨ doAction Brigyeetz aDoNothing ⟩
-  game (combat CombatStart) Brigyeetz (record ozzieStart { isCityUntapped = false ; walker1State = onBattlefield walkerInitialState
-        }) (record brigyeetzStart {isCityUntapped = false ; card2State = onBattlefield walkerInitialState}) true ⟶⟨ doAction Ozzie aDoNothing ⟩
-  game postCombatMain Brigyeetz (record ozzieStart { isCityUntapped = false ; walker1State = onBattlefield walkerInitialState
-        }) (record brigyeetzStart {isCityUntapped = false ; card2State = onBattlefield walkerInitialState}) false ⟶⟨ doAction Brigyeetz aDoNothing ⟩
-  game postCombatMain Brigyeetz (record ozzieStart { isCityUntapped = false ; walker1State = onBattlefield walkerInitialState
-        }) (record brigyeetzStart {isCityUntapped = false ; card2State = onBattlefield walkerInitialState}) true ⟶⟨ doAction Ozzie aDoNothing ⟩
-  game PreCombatMain Ozzie (record ozzieStart { walker1State = onBattlefield (record { isTapped = false ; summoningSickness = false ; nCounters = 1 }) })
-        (record brigyeetzStart { isCityUntapped = false ; card2State = onBattlefield walkerInitialState }) false ⟶⟨ doAction Ozzie aDoNothing ⟩
-  game PreCombatMain Ozzie (record ozzieStart { walker1State = onBattlefield (record { isTapped = false ; summoningSickness = false ; nCounters = 1 }) })
-        (record brigyeetzStart { isCityUntapped = false ; card2State = onBattlefield walkerInitialState }) true ⟶⟨ doAction Brigyeetz aDoNothing ⟩
-  game (combat CombatStart) Ozzie (record ozzieStart { walker1State = onBattlefield (record { isTapped = false ; summoningSickness = false ; nCounters = 1 }) })
-        (record brigyeetzStart { isCityUntapped = false ; card2State = onBattlefield walkerInitialState }) false
+  game PreCombatMain Brigyeetz (record ozzieStart { isCityUntapped = false ; walker1State = OnBattlefield walkerInitialState
+        }) (record brigyeetzStart {isCityUntapped = false ; card2State = OnBattlefield walkerInitialState}) false ⟶⟨ doAction Brigyeetz aDoNothing ⟩
+  game PreCombatMain Brigyeetz (record ozzieStart { isCityUntapped = false ; walker1State = OnBattlefield walkerInitialState
+        }) (record brigyeetzStart {isCityUntapped = false ; card2State = OnBattlefield walkerInitialState}) true ⟶⟨ doAction Ozzie aDoNothing ⟩
+  game (combat CombatStart) Brigyeetz (record ozzieStart { isCityUntapped = false ; walker1State = OnBattlefield walkerInitialState
+        }) (record brigyeetzStart {isCityUntapped = false ; card2State = OnBattlefield walkerInitialState}) false ⟶⟨ doAction Brigyeetz aDoNothing ⟩
+  game (combat CombatStart) Brigyeetz (record ozzieStart { isCityUntapped = false ; walker1State = OnBattlefield walkerInitialState
+        }) (record brigyeetzStart {isCityUntapped = false ; card2State = OnBattlefield walkerInitialState}) true ⟶⟨ doAction Ozzie aDoNothing ⟩
+  game postCombatMain Brigyeetz (record ozzieStart { isCityUntapped = false ; walker1State = OnBattlefield walkerInitialState
+        }) (record brigyeetzStart {isCityUntapped = false ; card2State = OnBattlefield walkerInitialState}) false ⟶⟨ doAction Brigyeetz aDoNothing ⟩
+  game postCombatMain Brigyeetz (record ozzieStart { isCityUntapped = false ; walker1State = OnBattlefield walkerInitialState
+        }) (record brigyeetzStart {isCityUntapped = false ; card2State = OnBattlefield walkerInitialState}) true ⟶⟨ doAction Ozzie aDoNothing ⟩
+  game PreCombatMain Ozzie (record ozzieStart { walker1State = OnBattlefield (record { isTapped = false ; summoningSickness = false ; nCounters = 1 }) })
+        (record brigyeetzStart { isCityUntapped = false ; card2State = OnBattlefield walkerInitialState }) false ⟶⟨ doAction Ozzie aDoNothing ⟩
+  game PreCombatMain Ozzie (record ozzieStart { walker1State = OnBattlefield (record { isTapped = false ; summoningSickness = false ; nCounters = 1 }) })
+        (record brigyeetzStart { isCityUntapped = false ; card2State = OnBattlefield walkerInitialState }) true ⟶⟨ doAction Brigyeetz aDoNothing ⟩
+  game (combat CombatStart) Ozzie (record ozzieStart { walker1State = OnBattlefield (record { isTapped = false ; summoningSickness = false ; nCounters = 1 }) })
+        (record brigyeetzStart { isCityUntapped = false ; card2State = OnBattlefield walkerInitialState }) false
         ⟶⟨ doAction Ozzie (aDeclareAttackers refl refl (myAttackers) (record { thoptersValid = z≤n ; walker1Valid = valid 1 ; walker2Valid = tt })) ⟩
-  game (combat (DeclaredAttackers myAttackers)) Ozzie (record ozzieStart { walker1State = onBattlefield (record { isTapped = true ; summoningSickness = false ; nCounters = 1 }) })
-        (record brigyeetzStart { isCityUntapped = false ; card2State = onBattlefield walkerInitialState }) false ⟶⟨ doAction Ozzie aDoNothing ⟩
-  game (combat (DeclaredAttackers myAttackers)) Ozzie (record ozzieStart { walker1State = onBattlefield (record { isTapped = true ; summoningSickness = false ; nCounters = 1 }) })
-        (record brigyeetzStart { isCityUntapped = false ; card2State = onBattlefield walkerInitialState }) true ⟶⟨ doAction Brigyeetz aDoNothing ⟩
-  game (combat (DeclaredBlockers myAttackers (noBlockers myAttackers))) Ozzie (record ozzieStart { walker1State = onBattlefield (record { isTapped = true ; summoningSickness = false ; nCounters = 1 }) })
-        (record brigyeetzStart { isCityUntapped = false ; card2State = onBattlefield walkerInitialState }) false ⟶⟨ doAction Ozzie aDoNothing ⟩
-  game (combat (DeclaredBlockers myAttackers (noBlockers myAttackers))) Ozzie (record ozzieStart { walker1State = onBattlefield (record { isTapped = true ; summoningSickness = false ; nCounters = 1 }) })
-        (record brigyeetzStart { isCityUntapped = false ; card2State = onBattlefield walkerInitialState }) true ⟶⟨ doAction Brigyeetz aDoNothing ⟩
-  game postCombatMain Ozzie (record ozzieStart { walker1State = onBattlefield (record { isTapped = true ; summoningSickness = false ; nCounters = 1 }) })
-        (record brigyeetzStart { healthTotal = 19; isCityUntapped = false ; card2State = onBattlefield walkerInitialState }) false ⟶⟨ doAction Brigyeetz aDoNothing ⟩
+  game (combat (DeclaredAttackers myAttackers)) Ozzie (record ozzieStart { walker1State = OnBattlefield (record { isTapped = true ; summoningSickness = false ; nCounters = 1 }) })
+        (record brigyeetzStart { isCityUntapped = false ; card2State = OnBattlefield walkerInitialState }) false ⟶⟨ doAction Ozzie aDoNothing ⟩
+  game (combat (DeclaredAttackers myAttackers)) Ozzie (record ozzieStart { walker1State = OnBattlefield (record { isTapped = true ; summoningSickness = false ; nCounters = 1 }) })
+        (record brigyeetzStart { isCityUntapped = false ; card2State = OnBattlefield walkerInitialState }) true ⟶⟨ doAction Brigyeetz aDoNothing ⟩
+  game (combat (DeclaredBlockers myAttackers (noBlockers myAttackers))) Ozzie (record ozzieStart { walker1State = OnBattlefield (record { isTapped = true ; summoningSickness = false ; nCounters = 1 }) })
+        (record brigyeetzStart { isCityUntapped = false ; card2State = OnBattlefield walkerInitialState }) false ⟶⟨ doAction Ozzie aDoNothing ⟩
+  game (combat (DeclaredBlockers myAttackers (noBlockers myAttackers))) Ozzie (record ozzieStart { walker1State = OnBattlefield (record { isTapped = true ; summoningSickness = false ; nCounters = 1 }) })
+        (record brigyeetzStart { isCityUntapped = false ; card2State = OnBattlefield walkerInitialState }) true ⟶⟨ doAction Brigyeetz aDoNothing ⟩
+  game postCombatMain Ozzie (record ozzieStart { walker1State = OnBattlefield (record { isTapped = true ; summoningSickness = false ; nCounters = 1 }) })
+        (record brigyeetzStart { healthTotal = 19; isCityUntapped = false ; card2State = OnBattlefield walkerInitialState }) false ⟶⟨ doAction Brigyeetz aDoNothing ⟩
 --   {!   !} ⟶⟨ {!   !} ⟩
 --   {!   !} ⟶⟨ {!   !} ⟩
     {!   !} ∎
@@ -790,8 +793,8 @@ HasBigWalkers s@record
     ; ozzieState = record { healthTotal = health ; thopters = thopters ; isCityUntapped = false}
     ; brigyeetzState = record
         { healthTotal = suc _
-        ; walker1State = onBattlefield record { isTapped = false ; summoningSickness = false ; nCounters = size1 }
-        ; card2State = onBattlefield record { isTapped = false ; summoningSickness = false ; nCounters = size2 }
+        ; walker1State = OnBattlefield record { isTapped = false ; summoningSickness = false ; nCounters = size1 }
+        ; card2State = OnBattlefield record { isTapped = false ; summoningSickness = false ; nCounters = size2 }
         }
     ; lastPlayerPassed = _
     } = (health ≤ size1) × (health ≤ size2) × (thopters ≡ noThopters)
@@ -804,8 +807,8 @@ big₋Walker₋game₋wins s@record
     ; ozzieState = record { healthTotal = health ; thopters = noThopters ; isCityUntapped = false }
     ; brigyeetzState = record
         { healthTotal = suc _
-        ; walker1State = onBattlefield record { isTapped = false ; summoningSickness = false ; nCounters = size1 }
-        ; card2State = onBattlefield record { isTapped = false ; summoningSickness = false ; nCounters = size2 }
+        ; walker1State = OnBattlefield record { isTapped = false ; summoningSickness = false ; nCounters = size1 }
+        ; card2State = OnBattlefield record { isTapped = false ; summoningSickness = false ; nCounters = size2 }
         }
     } (big1 , big2 , refl) = willWin nonZero
         ((aDeclareAttackers refl refl (record { thoptersAttack = 0 , z≤n ; walker1Attack = just tt ; walker2Attack = just tt })) , λ where

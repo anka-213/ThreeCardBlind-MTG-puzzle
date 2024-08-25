@@ -95,6 +95,16 @@ data GameState = GameState{phase :: Phase, activePlayer :: Player,
                            lastPlayerPassed :: Bool}
                    deriving (Show, Eq, Ord)
 
+stateOfPlayer :: GameState -> Player -> PlayerState
+stateOfPlayer s Ozzie = ozzieState s
+stateOfPlayer s Brigyeetz = brigyeetzState s
+
+setPlayerState :: GameState -> Player -> PlayerState -> GameState
+setPlayerState s Ozzie s1
+  = GameState (phase s) (activePlayer s) s1 (brigyeetzState s) False
+setPlayerState s Brigyeetz s1
+  = GameState (phase s) (activePlayer s) (ozzieState s) s1 False
+
 withPlayer ::
            GameState -> Player -> (PlayerState -> PlayerState) -> GameState
 withPlayer s Ozzie f
@@ -156,4 +166,10 @@ consumeMana s Two
       (walker1State s)
       (card2State s)
       (deck s)
+
+withPlayerCost ::
+               GameState ->
+                 Player -> ManaCost -> (PlayerState -> PlayerState) -> GameState
+withPlayerCost s p n f
+  = setPlayerState s p (f (consumeMana (stateOfPlayer s p) n))
 
