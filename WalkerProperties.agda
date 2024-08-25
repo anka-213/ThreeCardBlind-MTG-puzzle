@@ -338,3 +338,8 @@ nest-health-map-action (suc n) s act = {!   !}
 -- TODO: Dynamic programming to enumerate possibilities
 -- TODO: Enumerate possibilities and convert with agda2hs
 -- TODO: Prove that an abstraction over an entire turn is equivalent
+
+
+-- TODO: Generic structure for concept of strict improvement
+-- Which can be used to simplify: "never do something when its worse"
+-- strict improvement includes: more health, untapped things, but not bigger walkers

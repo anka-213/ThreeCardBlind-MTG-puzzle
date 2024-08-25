@@ -581,7 +581,7 @@ module _ {p} (ps : PlayerState p) where
 
     data PlayerAction : Set where
         aActivateWalker1 : ∀                          (hasMana : HasMana ps 1) (canActivate : canActivateWalker (walker1State ps)) → PlayerAction
-        -- aActivateWalker2 : ∀ (isBrg : p ≡ brigyeetz)  (hasMana : HasMana ps 1) (canActivate : canActivateWalker (card2State ps)) → PlayerAction
+        aActivateWalker2 : ∀ (isBrg : p ≡ brigyeetz)  (hasMana : HasMana ps 1) (canActivate : canActivateWalker2 isBrg (card2State ps)) → PlayerAction
         -- aActivateElixir  : ∀ (isOzz : p ≡ ozzie)      (hasMana : HasMana ps 2) (canActivate : card2State ps ≡ onBattlefield elixirState) → PlayerAction
 
 
