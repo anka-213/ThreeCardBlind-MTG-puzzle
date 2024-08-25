@@ -413,26 +413,27 @@ castWalker2 s = record s { card2State = onBattlefield walkerInitialState }
 castElixir : PlayerState ozzie → PlayerState ozzie
 castElixir s = record s { card2State = onBattlefield elixirState }
 
-data canActivateWalker : CardPosition walker → Set where
-  valid : ∀ n → canActivateWalker (onBattlefield (record { isTapped = false ; summoningSickness = false ; nCounters = n}))
+data canActivateCard : {c : Card} → CardPosition c → Set where
+  validW : ∀ n → canActivateCard (onBattlefield (record { isTapped = false ; summoningSickness = false ; nCounters = n}))
+  validE : canActivateCard (onBattlefield elixirState)
 
-canActivateWalker2 : ∀ {p} → p ≡ brigyeetz → CardPosition (card2ForPlayer p) → Set
-canActivateWalker2 refl s = canActivateWalker s
+-- canActivateWalker2 : ∀ {p} → p ≡ brigyeetz → CardPosition (card2ForPlayer p) → Set
+-- canActivateWalker2 refl s = canActivateCard s
 
--- activateWalker1 : ∀ {p} → canActivateWalker  →  PlayerState p → PlayerState p
+-- activateWalker1 : ∀ {p} → canActivateCard  →  PlayerState p → PlayerState p
 -- activateWalker1 _ s = record s { floatingMana = false ; walker1State = onBattlefield walkerInitialState }
 
-activateWalker : ∀ (s : CardPosition walker) (canActivate : canActivateWalker s) → CardPosition walker
-activateWalker .(onBattlefield (record { isTapped = false ; summoningSickness = false ; nCounters = n })) (valid n) = onBattlefield record { isTapped = true ; summoningSickness = false ; nCounters = 1 + n}
+activateWalker : ∀ (s : CardPosition walker) (canActivate : canActivateCard s) → CardPosition walker
+activateWalker .(onBattlefield (record { nCounters = n })) (validW n) = onBattlefield record { isTapped = true ; summoningSickness = false ; nCounters = 1 + n}
 
-activateWalker1 : ∀ {p} (s : PlayerState p) (hasMana : HasMana s 1) (canActivate : canActivateWalker (walker1State s)) → PlayerState p
+activateWalker1 : ∀ {p} (s : PlayerState p) (hasMana : HasMana s 1) (canActivate : canActivateCard (walker1State s)) → PlayerState p
 activateWalker1 s hasMana ca = record (consumeMana s 1 hasMana) { walker1State = activateWalker (walker1State s) ca}
 
-activateWalker2 : ∀ (s : PlayerState brigyeetz) (hasMana : HasMana s 1) (canActivate : canActivateWalker (card2State s)) → PlayerState brigyeetz
+activateWalker2 : ∀ (s : PlayerState brigyeetz) (hasMana : HasMana s 1) (canActivate : canActivateCard (card2State s)) → PlayerState brigyeetz
 activateWalker2 s hasMana ca = record (consumeMana s 1 hasMana) { card2State = activateWalker (card2State s) ca}
 
-activateElixir : ∀ (s : PlayerState ozzie) → PlayerState ozzie
-activateElixir s = record s { healthTotal = 5 + healthTotal s ; walker1State = graveyard2deck (walker1State s) ; card2State = inDeck ; deck = newDeck walkerPosition}
+activateElixir : ∀ (s : PlayerState ozzie) → (hasMana : HasMana s 2) → PlayerState ozzie
+activateElixir s hasMana = record (consumeMana s 2 hasMana) { healthTotal = 5 + healthTotal s ; walker1State = graveyard2deck (walker1State s) ; card2State = inDeck ; deck = newDeck walkerPosition}
   where
     graveyard2deck : CardPosition walker → CardPosition walker
     graveyard2deck inHand = inHand
@@ -574,16 +575,26 @@ doNothing p s@record {lastPlayerPassed = true} = endPhase (record s { lastPlayer
 
 module _ {p} (ps : PlayerState p) where
     data MainPhaseAction : Set where
-        aCastWalker1 : ∀                         (hasMana : HasMana ps 2) (isInHand : walker1State ps ≡ inHand) → MainPhaseAction
-        aCastCard2 : ∀ (hasMana : HasMana ps (card2CastingCost p)) (isInHand : card2State   ps ≡ inHand) → MainPhaseAction
-        -- aCastWalker2 : ∀ (isBrg : p ≡ brigyeetz) (hasMana : HasMana ps 2) (isInHand : card2State   ps ≡ inHand) → MainPhaseAction
-        -- aCastElixir  : ∀ (isOzz : p ≡ ozzie)     (hasMana : HasMana ps 1) (isInHand : card2State   ps ≡ inHand) → MainPhaseAction
+        aCastWalker1 : ∀                    (hasMana : HasMana ps 2) (isInHand : walker1State ps ≡ inHand) → MainPhaseAction
+        -- aCastCard2   : ∀ (hasMana : HasMana ps (card2CastingCost p)) (isInHand : card2State   ps ≡ inHand) → MainPhaseAction
+        aCastWalker2 : ∀ (isBrg : p ≡ brigyeetz) (hasMana : HasMana ps 2) (isInHand : card2State   ps ≡ inHand) → MainPhaseAction
+        aCastElixir  : ∀ (isOzz : p ≡ ozzie)     (hasMana : HasMana ps 1) (isInHand : card2State   ps ≡ inHand) → MainPhaseAction
 
     data PlayerAction : Set where
-        aActivateWalker1 : ∀                          (hasMana : HasMana ps 1) (canActivate : canActivateWalker (walker1State ps)) → PlayerAction
-        aActivateWalker2 : ∀ (isBrg : p ≡ brigyeetz)  (hasMana : HasMana ps 1) (canActivate : canActivateWalker2 isBrg (card2State ps)) → PlayerAction
-        -- aActivateElixir  : ∀ (isOzz : p ≡ ozzie)      (hasMana : HasMana ps 2) (canActivate : card2State ps ≡ onBattlefield elixirState) → PlayerAction
+        aActivateWalker1 : ∀                         (hasMana : HasMana ps 1) (canActivate : canActivateCard (walker1State ps)) → PlayerAction
+        -- aActivateCard2   : ∀  (hasMana : HasMana ps (card2ActivationCost p)) (canActivate : canActivateCard (card2State   ps)) → PlayerAction
+        aActivateWalker2 : ∀ (isBrg : p ≡ brigyeetz) (hasMana : HasMana ps 1) (canActivate : canActivateCard (card2State   ps)) → PlayerAction
+        aActivateElixir  : ∀ (isOzz : p ≡ ozzie)     (hasMana : HasMana ps 2) (canActivate : canActivateCard (card2State   ps)) → PlayerAction
 
+    performPlayerAction : PlayerAction → PlayerState p
+    performPlayerAction (aActivateWalker1       hasMana canActivate) = activateWalker1 ps hasMana canActivate
+    performPlayerAction (aActivateWalker2 refl hasMana canActivate) = activateWalker2 ps hasMana canActivate
+    performPlayerAction (aActivateElixir  refl hasMana canActivate) = activateElixir ps hasMana
+
+    performMainPhaseAction : MainPhaseAction → PlayerState p
+    performMainPhaseAction (aCastWalker1 hasMana isInHand) = castWalker1 (consumeMana ps 2 hasMana)
+    performMainPhaseAction (aCastWalker2 refl hasMana isInHand) = castWalker2 (consumeMana ps 2 hasMana)
+    performMainPhaseAction (aCastElixir refl hasMana isInHand) = castElixir (consumeMana ps 1 hasMana)
 
 -- Actions
 module _ (s : GameState) where
@@ -608,8 +619,8 @@ module _ (s : GameState) where
     -- performAction p (aActivateWalker1 hasMana canActivate) = setPlayerState s p (activateWalker1 (stateOfPlayer p) hasMana canActivate)
     -- performAction p (aActivateWalker2 hasMana canActivate) = setPlayerState s brigyeetz (activateWalker2 brigyeetzState hasMana canActivate)
     -- performAction p (aActivateElixir hasMana canActivate) = withPlayerCost s ozzie 2 hasMana activateElixir
-    performAction p (aPlayerAction pAct) = withPlayer s p {!performPlayerAction pAct!}
-    performAction p (aMainPhaseAction isActive inMain mpAct) = withPlayer s p {!performMainPhaseAction mpAct!}
+    performAction p (aPlayerAction pAct) = withPlayerP s p PlayerAction pAct performPlayerAction
+    performAction p (aMainPhaseAction isActive inMain mpAct) = withPlayerP s p MainPhaseAction mpAct performMainPhaseAction
     performAction p (aDeclareAttackers phs curPl atcks) = withPlayer (changePhase s (combat (DeclaredAttackers _ atcks))) activePlayer (tapAttackers atcks) -- record s { phase =  ; lastPlayerPassed = false}
     performAction p (aDeclareBlockers atcks phs curPl blcks) = changePhase s (combat (DeclaredBlockers _ atcks blcks))
     performAction p (aDoNothing) = doNothing p s
