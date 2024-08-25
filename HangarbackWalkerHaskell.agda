@@ -11,6 +11,7 @@ open import Data.Product
 open import Data.Sum.Base
 open import Data.List hiding (drop)
 -- open import Haskell.Prelude using (List ; drop ; [])
+-- open import Haskell.Prelude using (Int)
 open import Data.Maybe
 open import Relation.Nullary
 open import Relation.Binary.Construct.Closure.ReflexiveTransitive
@@ -136,6 +137,7 @@ card2ForPlayer Ozzie = Elixir
 card2ForPlayer Brigyeetz = Walker
 {-# COMPILE AGDA2HS card2ForPlayer #-}
 
+-- IDEA: Dont use set here, instead have a null thing and disambiguate with a data type in the end
 record PlayerState (card2StateType : Set) : Set where
     pattern
     field
@@ -353,8 +355,10 @@ module _ (s : GameState) where
     setPlayerState Ozzie s1 = record s { ozzieState = s1 ; lastPlayerPassed = false}
     setPlayerState Brigyeetz s1 = record s { brigyeetzState = s1 ; lastPlayerPassed = false}
 
-    withPlayer : ∀ (p : Player) → (PlayerStateFor p → PlayerStateFor p) → GameState
-    withPlayer p f = setPlayerState p (f (stateOfPlayer s p))
+    withPlayer : ∀ (p : Player) → (∀ c → PlayerState c → PlayerState c) → GameState
+    withPlayer Ozzie f = record s { ozzieState = f ElixirState (ozzieState s) ; lastPlayerPassed = false}
+    withPlayer Brigyeetz f = record s { brigyeetzState = f _ (brigyeetzState s) ; lastPlayerPassed = false}
+    -- withPlayer p f = setPlayerState p (f (stateOfPlayer s p))
 
     -- sp = stateOfPlayer p
     withPlayerP : ∀ (p : Player) (P : PlayerStateFor p → Set) → (P (stateOfPlayer s p)) → ((s : PlayerStateFor p) → P s → PlayerStateFor p) → GameState
@@ -363,6 +367,7 @@ module _ (s : GameState) where
     -- withPlayer Ozzie f = record s { ozzieState = f ozzieState ; lastPlayerPassed = false}
     -- withPlayer Brigyeetz f = record s { brigyeetzState = f brigyeetzState ; lastPlayerPassed = false}
 
+{-# COMPILE AGDA2HS withPlayer #-}
 -- open GameState
 
 noThopters : ThopterState
@@ -416,8 +421,8 @@ initialGameState p = record
 drop = Data.List.drop
 
 -- We ignore invalid states here
-drawCardForPlayer : ∀ {p} → PlayerState p → PlayerState p
-drawCardForPlayer {p} s = record s {deck = new₋deck ; walker1State = new₋walker1State (deck s) (walker1State s) ; card2State = new₋card2State (deck s) (card2State s) }
+drawCardForPlayer : ∀ p → PlayerState p → PlayerState p
+drawCardForPlayer p s = record s {deck = new₋deck ; walker1State = new₋walker1State (deck s) (walker1State s) ; card2State = new₋card2State (deck s) (card2State s) }
   where
     new₋deck = drop 1 (deck s)
     new₋walker1State : List Card → CardPosition WalkerState → CardPosition WalkerState
@@ -432,9 +437,9 @@ drawCardForPlayer {p} s = record s {deck = new₋deck ; walker1State = new₋wal
 {-# COMPILE AGDA2HS drawCardForPlayer #-}
 
 
-{-
 drawCard : GameState → GameState
 drawCard s = withPlayer s (GameState.activePlayer s) drawCardForPlayer
+{-# COMPILE AGDA2HS drawCard #-}
 
 -- end turn = remove mana, flip players, remove summoning sickness, untap, draw
 -- end phase = remove mana, remove damage
@@ -442,24 +447,31 @@ drawCard s = withPlayer s (GameState.activePlayer s) drawCardForPlayer
 -- withCurrent : (s : GameState) → (PlayerState (activePlayer s) → PlayerState (activePlayer s)) → GameState
 -- withCurrent s f = record s { activePlayerState = f (activePlayerState s)}
 
--- We do not allow more than one mana source, since only one exists in this matchup
-module _ {p : Player} (s : PlayerState p) where
-    HasMana : ℕ → Set
-    HasMana 1 = T (isCityUntapped s ∨ floatingMana s)
-    HasMana 2 = T (isCityUntapped s)
-    HasMana _ = ⊥
+data ManaCost : Set where
+    One : ManaCost
+    Two : ManaCost
+{-# COMPILE AGDA2HS ManaCost #-}
 
-    consumeMana : ∀ n → HasMana n → PlayerState p
-    consumeMana 1 h = record s
+-- We do not allow more than one mana source, since only one exists in this matchup
+module _ {p} (s : PlayerState p) where
+    HasMana : ManaCost → Set
+    HasMana One = T (isCityUntapped s ∨ floatingMana s)
+    HasMana Two = T (isCityUntapped s)
+
+    consumeMana : ∀ n → @0 HasMana n → PlayerState p
+    consumeMana One h = record s
         { isCityUntapped = false
         ; floatingMana = isCityUntapped s -- If we used the land, we have a spare mana
         }
-    consumeMana 2 h = record s { isCityUntapped = false }
+    consumeMana Two h = record s { isCityUntapped = false }
 
     -- consumeMana .2 (untappedLand pf) = record s { isCityUntapped = false }
     -- consumeMana .1 (usingFloatingMana hasMana) = record s { floatingMana = false }
     -- consumeMana .1 (ignoreMana pf) = record s { isCityUntapped = false ; floatingMana = true }
 
+{-# COMPILE AGDA2HS consumeMana #-}
+
+{-
 module _ (s : GameState) where
     open GameState s
     withPlayerCost : ∀ (p : Player) n → HasMana (stateOfPlayer p) n → (PlayerState p → PlayerState p) → GameState

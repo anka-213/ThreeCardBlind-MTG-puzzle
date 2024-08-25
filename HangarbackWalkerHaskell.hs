@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 module HangarbackWalkerHaskell where
 
 import Numeric.Natural (Natural)
@@ -103,6 +104,18 @@ data GameState = GameState{phase :: Phase, activePlayer :: Player,
                            lastPlayerPassed :: Bool}
                    deriving (Show, Eq, Ord)
 
+withPlayer ::
+           GameState ->
+             Player -> (forall c. PlayerState c -> PlayerState c) -> GameState
+withPlayer s Ozzie f
+  = GameState (phase s) (activePlayer s) (f (ozzieState s))
+      (brigyeetzState s)
+      False
+withPlayer s Brigyeetz f
+  = GameState (phase s) (activePlayer s) (ozzieState s)
+      (f (brigyeetzState s))
+      False
+
 noThopters :: ThopterState
 noThopters = ThopterState 0 0 0
 
@@ -134,4 +147,23 @@ drawCardForPlayer s
     new_card2State :: [Card] -> CardPosition c -> CardPosition c
     new_card2State (Elixir : _) _ = InHand
     new_card2State _ cardState = cardState
+
+drawCard :: GameState -> GameState
+drawCard s = withPlayer s (activePlayer s) drawCardForPlayer
+
+data ManaCost = One
+              | Two
+
+consumeMana ::
+            forall p . PlayerState p -> ManaCost -> PlayerState p
+consumeMana s One
+  = PlayerState (healthTotal s) (isCityUntapped s) (thopters s) False
+      (walker1State s)
+      (card2State s)
+      (deck s)
+consumeMana s Two
+  = PlayerState (healthTotal s) (floatingMana s) (thopters s) False
+      (walker1State s)
+      (card2State s)
+      (deck s)
 
