@@ -97,9 +97,18 @@ data GameState = GameState{phase :: Phase, activePlayer :: Player,
                            lastPlayerPassed :: Bool}
                    deriving (Show, Eq, Ord)
 
+opponent :: GameState -> Player
+opponent s = opponentOf (activePlayer s)
+
 stateOfPlayer :: GameState -> Player -> PlayerState
 stateOfPlayer s Ozzie = ozzieState s
 stateOfPlayer s Brigyeetz = brigyeetzState s
+
+activePlayerState :: GameState -> PlayerState
+activePlayerState s = stateOfPlayer s (activePlayer s)
+
+opponentState :: GameState -> PlayerState
+opponentState s = stateOfPlayer s (opponent s)
 
 setPlayerState :: GameState -> Player -> PlayerState -> GameState
 setPlayerState s Ozzie s1
@@ -357,6 +366,29 @@ takeDamage a b attacker defender
 resolveCombat ::
               GameState -> AttackerInfo -> BlockerInfo -> GameState
 resolveCombat s a b
-  = withPlayer s (opponentOf (activePlayer s))
+  = withPlayer s (opponent s)
       (takeDamage a b (stateOfPlayer s (activePlayer s)))
+
+endPhase :: GameState -> GameState
+endPhase s0 = go s0 (phase s0)
+  where
+    go :: GameState -> Phase -> GameState
+    go s PreCombatMain = changePhase s (Combat CombatStart)
+    go s (Combat CombatStart) = changePhase s PostCombatMain
+    go s (Combat (DeclaredAttackers a))
+      = changePhase s (Combat (DeclaredBlockers a noBlockers))
+    go s (Combat (DeclaredBlockers a b))
+      = changePhase (resolveCombat s a b) PostCombatMain
+    go s PostCombatMain = endTurn s
+
+doNothing :: GameState -> GameState
+doNothing s
+  = case lastPlayerPassed s of
+        False -> GameState (phase s) (activePlayer s) (ozzieState s)
+                   (brigyeetzState s)
+                   True
+        True -> endPhase
+                  (GameState (phase s) (activePlayer s) (ozzieState s)
+                     (brigyeetzState s)
+                     False)
 

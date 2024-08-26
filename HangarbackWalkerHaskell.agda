@@ -2,7 +2,7 @@
 {-# FOREIGN AGDA2HS {-# OPTIONS_GHC -Wall #-} #-}
 -- {-# FOREIGN AGDA2HS {-# OPTIONS_GHC -Wunused-matches #-} #-}
 open import Relation.Binary.PropositionalEquality
-open import Function
+open import Function hiding (case_of_)
 open import Data.Nat
 open import Data.Nat.Properties
 open import Data.Fin using (Fin ; #_)
@@ -14,7 +14,7 @@ open import Data.Sum.Base
 open import Data.List hiding (drop)
 -- open import Haskell.Prelude using (List ; drop ; [])
 -- open import Haskell.Prelude using (Int)
-open import Haskell.Prelude using (if_then_else_ ; Maybe ; Just ; Nothing ; maybe)
+open import Haskell.Prelude using (if_then_else_ ; case_of_ ; Maybe ; Just ; Nothing ; maybe)
 -- open import Data.Maybe
 open import Relation.Nullary
 open import Relation.Binary.Construct.Closure.ReflexiveTransitive
@@ -301,46 +301,46 @@ record GameState : Set where
 open GameState public
 {-# COMPILE AGDA2HS GameState deriving (Show, Eq, Ord) #-}
 
-module _ (s : GameState) where
-    opponent : Player
-    opponent = opponentOf (activePlayer s)
+opponent : GameState → Player
+opponent s = opponentOf (activePlayer s)
+{-# COMPILE AGDA2HS opponent #-}
 
+module _ (s : GameState) where
     stateOfPlayer : (p : Player) → PlayerState p
     stateOfPlayer Ozzie = ozzieState s
     stateOfPlayer Brigyeetz = brigyeetzState s
-
-    activePlayerState : PlayerState (activePlayer s)
-    activePlayerState = stateOfPlayer (activePlayer s)
-    opponentState : PlayerState opponent
-    opponentState = stateOfPlayer opponent
-
--- {-# COMPILE AGDA2HS opponent #-}
 {-# COMPILE AGDA2HS stateOfPlayer #-}
--- {-# COMPILE AGDA2HS activePlayerState #-}
--- {-# COMPILE AGDA2HS opponentState #-}
+
+activePlayerState : (s : GameState) → PlayerState (activePlayer s)
+activePlayerState s = stateOfPlayer s (activePlayer s)
+{-# COMPILE AGDA2HS activePlayerState #-}
+
+opponentState : (s : GameState) → PlayerState (opponent s)
+opponentState s = stateOfPlayer s (opponent s)
+{-# COMPILE AGDA2HS opponentState #-}
 -- TODO: Maybe add priority field to game state to tell who can do an action
 
-module _ (s : GameState) where
         -- record s { activePlayerState = f (activePlayerState s)}
-    setPlayerState : ∀ (p : Player) → PlayerState p → GameState
-    setPlayerState Ozzie s1 = record s { ozzieState = s1 ; lastPlayerPassed = false}
-    setPlayerState Brigyeetz s1 = record s { brigyeetzState = s1 ; lastPlayerPassed = false}
 
-    withPlayer : ∀ (p : Player) → (PlayerState p → PlayerState p) → GameState
-    withPlayer Ozzie f = record s { ozzieState = f (ozzieState s) ; lastPlayerPassed = false}
-    withPlayer Brigyeetz f = record s { brigyeetzState = f (brigyeetzState s) ; lastPlayerPassed = false}
-    -- withPlayer p f = setPlayerState p (f (stateOfPlayer s p))
 
-    -- sp = stateOfPlayer p
-    withPlayerP : ∀ (p : Player) (P : PlayerState p → Set) → (P (stateOfPlayer s p)) → ((s : PlayerState p) → P s → PlayerState p) → GameState
-    withPlayerP p P arg f = setPlayerState p (f sp arg)
-      where sp = stateOfPlayer s p
-    -- withPlayer Ozzie f = record s { ozzieState = f ozzieState ; lastPlayerPassed = false}
-    -- withPlayer Brigyeetz f = record s { brigyeetzState = f brigyeetzState ; lastPlayerPassed = false}
+setPlayerState : ∀ (s : GameState) (p : Player) → PlayerState p → GameState
+setPlayerState s Ozzie s1 = record s { ozzieState = s1 ; lastPlayerPassed = false}
+setPlayerState s Brigyeetz s1 = record s { brigyeetzState = s1 ; lastPlayerPassed = false}
+{-# COMPILE AGDA2HS setPlayerState #-}
 
-    {-# COMPILE AGDA2HS withPlayer #-}
-    {-# COMPILE AGDA2HS setPlayerState #-}
--- open GameState
+withPlayer : ∀ (s : GameState) (p : Player) → (PlayerState p → PlayerState p) → GameState
+withPlayer s Ozzie f = record s { ozzieState = f (ozzieState s) ; lastPlayerPassed = false}
+withPlayer s Brigyeetz f = record s { brigyeetzState = f (brigyeetzState s) ; lastPlayerPassed = false}
+-- withPlayer p f = setPlayerState p (f (stateOfPlayer s p))
+{-# COMPILE AGDA2HS withPlayer #-}
+
+-- module _ (s : GameState) where
+    -- -- sp = stateOfPlayer p
+    -- withPlayerP : ∀ (p : Player) (P : PlayerState p → Set) → (P (stateOfPlayer s p)) → ((s : PlayerState p) → P s → PlayerState p) → GameState
+    -- withPlayerP p P arg f = setPlayerState s p (f sp arg)
+    --   where sp = stateOfPlayer s p
+    -- -- withPlayer Ozzie f = record s { ozzieState = f ozzieState ; lastPlayerPassed = false}
+    -- -- withPlayer Brigyeetz f = record s { brigyeetzState = f brigyeetzState ; lastPlayerPassed = false}
 
 noThopters : ThopterState
 noThopters = record
@@ -607,27 +607,37 @@ module _ {@0 p} {@0 pps : AttackContext} {@0 bc : BlockerContext} where
     -- TODO: Destroy smaller creatures
 
 resolveCombat : ∀ (s : GameState) {@0 pps : AttackContext} {@0 bc : BlockerContext} → (a : AttackerInfo pps) → (b : BlockerInfo pps a bc) → @0 (phase s ≡ Combat (DeclaredBlockers pps a b)) → GameState
-resolveCombat s a b r = withPlayer s (opponentOf (activePlayer s)) (takeDamage a b (stateOfPlayer s (activePlayer s)))
+resolveCombat s a b r = withPlayer s (opponent s) (takeDamage a b (stateOfPlayer s (activePlayer s)))
 -- TODO: Handle blockers
 -- TODO: Allow choosing order of attacking blockers
 {-# COMPILE AGDA2HS resolveCombat #-}
 
 
-{-
-
 endPhase : GameState → GameState
-endPhase s@record { phase = PreCombatMain } = changePhase s (Combat CombatStart)
-endPhase s@record { phase = Combat CombatStart } = changePhase s PostCombatMain -- If no attackers are declared, skip Combat
-endPhase s@record { phase = Combat (DeclaredAttackers pps a) } = changePhase s (Combat (DeclaredBlockers pps a (noBlockers pps a (blockerContextFor (opponentState s)))))
-endPhase s@record { phase = Combat (DeclaredBlockers pps a b) } = changePhase (resolveCombat s a b refl) PostCombatMain
-endPhase s@record { phase = PostCombatMain } = endTurn s
+-- endPhase s = case phase s of λ where
+--     PreCombatMain → changePhase s (Combat CombatStart)
+--     (Combat CombatStart) → changePhase s PostCombatMain -- If no attackers are declared, skip Combat
+--     (Combat (DeclaredAttackers pps a) ) → changePhase s (Combat (DeclaredBlockers pps a (noBlockers pps a (blockerContextFor (opponentState s)))))
+--     (Combat (DeclaredBlockers pps a b) ) → changePhase (resolveCombat s a b {!   !}) PostCombatMain
+--     PostCombatMain → endTurn s
+endPhase s0 = go s0 (phase s0) refl
+  where
+    go : (s : GameState) → (ph : Phase) → @0 phase s ≡ ph → GameState
+    go s PreCombatMain _                         = changePhase s (Combat CombatStart)
+    go s (Combat CombatStart) _                  = changePhase s PostCombatMain -- If no attackers are declared, skip Combat
+    go s (Combat (DeclaredAttackers pps a) ) _   = changePhase s (Combat (DeclaredBlockers pps a (noBlockers pps a (blockerContextFor (opponentState s)))))
+    go s (Combat (DeclaredBlockers pps a b) ) eq = changePhase (resolveCombat s a b eq) PostCombatMain
+    go s PostCombatMain _                        = endTurn s
 {-# COMPILE AGDA2HS endPhase #-}
 
 
-doNothing : ∀ (p : Player) (s : GameState) → GameState
-doNothing p s@record {lastPlayerPassed = false} = record s { lastPlayerPassed = true }
-doNothing p s@record {lastPlayerPassed = true} = endPhase (record s { lastPlayerPassed = false })
+doNothing : ∀ (s : GameState) → GameState
+doNothing s = case lastPlayerPassed s of λ where
+    false → record s { lastPlayerPassed = true }
+    true  → endPhase (record s { lastPlayerPassed = false })
 {-# COMPILE AGDA2HS doNothing #-}
+
+{-
 
 -- Actions
 module _ (s : GameState) where
@@ -659,7 +669,7 @@ module _ (s : GameState) where
     performAction p (aActivateElixir hasMana canActivate) = withPlayerCost s Ozzie 2 hasMana activateElixir
     performAction p (aDeclareAttackers phs curPl atcks) = withPlayer (changePhase s (Combat (DeclaredAttackers _ atcks))) activePlayer (tapAttackers atcks) -- record s { phase =  ; lastPlayerPassed = false}
     performAction p (aDeclareBlockers atcks phs curPl blcks) = changePhase s (Combat (DeclaredBlockers _ atcks blcks))
-    performAction p (aDoNothing) = doNothing p s
+    performAction p (aDoNothing) = doNothing s
     -- _⇒_ : GameState → Set
     -- _⇒_ = Action
 
