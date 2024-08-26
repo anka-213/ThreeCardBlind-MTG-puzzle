@@ -1,4 +1,6 @@
 {-# OPTIONS --postfix-projections --erasure #-}
+{-# FOREIGN AGDA2HS {-# OPTIONS_GHC -Wall #-} #-}
+-- {-# FOREIGN AGDA2HS {-# OPTIONS_GHC -Wunused-matches #-} #-}
 open import Relation.Binary.PropositionalEquality
 open import Function
 open import Data.Nat
@@ -391,14 +393,14 @@ initialGameState p = record
 drop = Data.List.drop
 
 -- We ignore invalid states here
-drawCardForPlayer : ∀ {p} → PlayerState p → PlayerState p
-drawCardForPlayer {p} s = record s {deck = new₋deck ; walker1State = new₋walker1State (deck s) (walker1State s) ; card2State = new₋card2State (deck s) (card2State s) }
+drawCardForPlayer : ∀ {@0 p} → PlayerState p → PlayerState p
+drawCardForPlayer s = record s {deck = new₋deck ; walker1State = new₋walker1State (deck s) (walker1State s) ; card2State = new₋card2State (deck s) (card2State s) }
   where
     new₋deck = drop 1 (deck s)
     new₋walker1State : List Card → CardPosition Walker → CardPosition Walker
     new₋walker1State (Walker ∷ _) _ = InHand
     new₋walker1State _ cardState = cardState
-    new₋card2State : ∀ {c} → List Card → CardPosition c → CardPosition c
+    new₋card2State : ∀ {@0 c} → List Card → CardPosition c → CardPosition c
     new₋card2State (Elixir ∷ _) _ = InHand
     new₋card2State _ cardState = cardState
 -- drawCardForPlayer s@record {deck = []} = s
@@ -449,7 +451,7 @@ withPlayerCost s p n hasMana f = setPlayerState s p (f (consumeMana (stateOfPlay
 -- tapLand : ∀ {p} → PlayerState p → PlayerState p
 -- tapLand s = record s { isCityUntapped = false ; floatingMana = 2 }
 
-castWalker1 : ∀ {p} → PlayerState p → PlayerState p
+castWalker1 : ∀ {@0 p} → PlayerState p → PlayerState p
 castWalker1 s = record s {  walker1State = OnBattlefield (CWalkerState walkerInitialState) }
 {-# COMPILE AGDA2HS castWalker1 #-}
 
@@ -472,9 +474,10 @@ canActivateWalker2 refl s = canActivateWalker s
 
 activateWalker : ∀ (s : CardPosition Walker) (@0 canActivate : canActivateWalker s) → CardPosition Walker
 activateWalker (OnBattlefield (CWalkerState (record { isTapped = false ; summoningSickness = false ; nCounters = n }))) (valid n) = OnBattlefield (CWalkerState record { isTapped = true ; summoningSickness = false ; nCounters = 1 + n})
+activateWalker s _ = s
 {-# COMPILE AGDA2HS activateWalker #-}
 
-activateWalker1 : ∀ {p} (s : PlayerState p) (@0 hasMana : HasMana s One) (@0 canActivate : canActivateWalker (walker1State s)) → PlayerState p
+activateWalker1 : ∀ {@0 p} (s : PlayerState p) (@0 hasMana : HasMana s One) (@0 canActivate : canActivateWalker (walker1State s)) → PlayerState p
 activateWalker1 s hasMana ca = record (consumeMana s One hasMana) { walker1State = activateWalker (walker1State s) ca}
 {-# COMPILE AGDA2HS activateWalker1 #-}
 
@@ -509,22 +512,22 @@ data isMain : Phase → Set where
 
 
 
-mapCard : ∀ {c} → (CardState c → CardState c) → CardPosition c → CardPosition c
+mapCard : ∀ {@0 c} → (CardState c → CardState c) → CardPosition c → CardPosition c
 mapCard f (OnBattlefield x) = OnBattlefield (f x)
-mapCard f x = x
+mapCard _ x = x
 {-# COMPILE AGDA2HS mapCard #-}
 
-tapCard : ∀ {c} → CardState c → CardState c
-tapCard {Walker} (CWalkerState st) = CWalkerState (record st { isTapped = true })
-tapCard {Elixir} st = st
+tapCard : ∀ {@0 c} → CardState c → CardState c
+tapCard (CWalkerState st) = CWalkerState (record st { isTapped = true })
+tapCard st = st
 {-# COMPILE AGDA2HS tapCard #-}
 
-untapCard : ∀ {c} → CardState c → CardState c
-untapCard {Walker} (CWalkerState st) = CWalkerState (record st { isTapped = false ; summoningSickness = false })
-untapCard {Elixir} st = st
+untapCard : ∀ {@0 c} → CardState c → CardState c
+untapCard (CWalkerState st) = CWalkerState (record st { isTapped = false ; summoningSickness = false })
+untapCard st = st
 {-# COMPILE AGDA2HS untapCard #-}
 
-tapAttackers : ∀ {p} {@0 pps : AttackContext} (a : AttackerInfo pps) (s : PlayerState p) → PlayerState p
+tapAttackers : ∀ {@0 p} {@0 pps : AttackContext} (a : AttackerInfo pps) (s : PlayerState p) → PlayerState p
 tapAttackers a s = record s
     { thopters = record (thopters s)
         { untappedUnsickThopters = untappedUnsickThopters s ∸ AttackerInfo.thoptersAttack a
@@ -535,7 +538,7 @@ tapAttackers a s = record s
     }
 {-# COMPILE AGDA2HS tapAttackers #-}
 
-clearMana : ∀ {p} → PlayerState p → PlayerState p
+clearMana : ∀ {@0 p} → PlayerState p → PlayerState p
 clearMana s = record s { floatingMana = false }
 {-# COMPILE AGDA2HS clearMana #-}
 
@@ -543,7 +546,7 @@ changePhase : (s : GameState) → Phase → GameState
 changePhase s ph = record s { phase = ph ; ozzieState = clearMana (ozzieState s) ; brigyeetzState = clearMana (brigyeetzState s) ; lastPlayerPassed = false}
 {-# COMPILE AGDA2HS changePhase #-}
 
-untapPlayer : ∀ {p} → PlayerState p → PlayerState p
+untapPlayer : ∀ {@0 p} → PlayerState p → PlayerState p
 untapPlayer s = record s
     { thopters = record
         { tappedThopters = 0
@@ -567,7 +570,7 @@ endTurn s = drawCard (untapActivePlayer (record (changePhase s PreCombatMain) { 
 -- TODO: Disallow invalid states
 walkerSize : ∀ {@0 c} → CardPosition c → ℕ
 walkerSize (OnBattlefield (CWalkerState st)) = WalkerState.nCounters st
-walkerSize s = 0
+walkerSize _ = 0
 {-# COMPILE AGDA2HS walkerSize #-}
 
 

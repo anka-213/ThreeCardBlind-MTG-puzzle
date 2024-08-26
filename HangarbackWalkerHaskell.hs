@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wall #-}
+
 module HangarbackWalkerHaskell where
 
 import Numeric.Natural (Natural)
@@ -130,12 +132,12 @@ initialGameState :: Player -> GameState
 initialGameState p
   = GameState PreCombatMain p ozzieStart brigyeetzStart False
 
-drawCardForPlayer :: Player -> PlayerState -> PlayerState
-drawCardForPlayer p s
+drawCardForPlayer :: PlayerState -> PlayerState
+drawCardForPlayer s
   = PlayerState (healthTotal s) (floatingMana s) (thopters s)
       (isCityUntapped s)
       (new_walker1State (deck s) (walker1State s))
-      (new_card2State (card2ForPlayer p) (deck s) (card2State s))
+      (new_card2State (deck s) (card2State s))
       new_deck
   where
     new_deck :: [Card]
@@ -143,14 +145,12 @@ drawCardForPlayer p s
     new_walker1State :: [Card] -> CardPosition -> CardPosition
     new_walker1State (Walker : _) _ = InHand
     new_walker1State _ cardState = cardState
-    new_card2State :: Card -> [Card] -> CardPosition -> CardPosition
-    new_card2State c (Elixir : _) _ = InHand
-    new_card2State c _ cardState = cardState
+    new_card2State :: [Card] -> CardPosition -> CardPosition
+    new_card2State (Elixir : _) _ = InHand
+    new_card2State _ cardState = cardState
 
 drawCard :: GameState -> GameState
-drawCard s
-  = withPlayer s (activePlayer s)
-      (drawCardForPlayer (activePlayer s))
+drawCard s = withPlayer s (activePlayer s) drawCardForPlayer
 
 data ManaCost = One
               | Two
@@ -173,8 +173,8 @@ withPlayerCost ::
 withPlayerCost s p n f
   = setPlayerState s p (f (consumeMana (stateOfPlayer s p) n))
 
-castWalker1 :: Player -> PlayerState -> PlayerState
-castWalker1 p s
+castWalker1 :: PlayerState -> PlayerState
+castWalker1 s
   = PlayerState (healthTotal s) (floatingMana s) (thopters s)
       (isCityUntapped s)
       (OnBattlefield (CWalkerState walkerInitialState))
@@ -201,9 +201,10 @@ activateWalker :: CardPosition -> CardPosition
 activateWalker
   (OnBattlefield (CWalkerState (WalkerState False False n)))
   = OnBattlefield (CWalkerState (WalkerState True False (1 + n)))
+activateWalker s = s
 
-activateWalker1 :: Player -> PlayerState -> PlayerState
-activateWalker1 p s
+activateWalker1 :: PlayerState -> PlayerState
+activateWalker1 s
   = PlayerState (healthTotal (consumeMana s One))
       (floatingMana (consumeMana s One))
       (thopters (consumeMana s One))
@@ -241,41 +242,36 @@ activateElixir s
     newDeck InDeck = [Walker, Elixir]
     newDeck _ = [Elixir]
 
-mapCard ::
-        Card -> (CardState -> CardState) -> CardPosition -> CardPosition
-mapCard c f (OnBattlefield x) = OnBattlefield (f x)
-mapCard c f x = x
+mapCard :: (CardState -> CardState) -> CardPosition -> CardPosition
+mapCard f (OnBattlefield x) = OnBattlefield (f x)
+mapCard _ x = x
 
-tapCard :: Card -> CardState -> CardState
-tapCard Walker (CWalkerState st)
+tapCard :: CardState -> CardState
+tapCard (CWalkerState st)
   = CWalkerState
       (WalkerState True (summoningSickness st) (nCounters st))
-tapCard Elixir st = st
+tapCard st = st
 
-untapCard :: Card -> CardState -> CardState
-untapCard Walker (CWalkerState st)
+untapCard :: CardState -> CardState
+untapCard (CWalkerState st)
   = CWalkerState (WalkerState False False (nCounters st))
-untapCard Elixir st = st
+untapCard st = st
 
-tapAttackers ::
-             Player -> AttackerInfo -> PlayerState -> PlayerState
-tapAttackers p a s
+tapAttackers :: AttackerInfo -> PlayerState -> PlayerState
+tapAttackers a s
   = PlayerState (healthTotal s) (floatingMana s)
       (ThopterState (tappedThopters (thopters s) + thoptersAttack a)
          (untappedUnsickThopters (thopters s) - thoptersAttack a)
          (summoningSickThopters (thopters s)))
       (isCityUntapped s)
-      (if walker1Attack a then
-         mapCard Walker (tapCard Walker) (walker1State s) else
+      (if walker1Attack a then mapCard tapCard (walker1State s) else
          walker1State s)
-      (if walker2Attack a then
-         mapCard (card2ForPlayer p) (tapCard (card2ForPlayer p))
-           (card2State s)
-         else card2State s)
+      (if walker2Attack a then mapCard tapCard (card2State s) else
+         card2State s)
       (deck s)
 
-clearMana :: Player -> PlayerState -> PlayerState
-clearMana p s
+clearMana :: PlayerState -> PlayerState
+clearMana s
   = PlayerState (healthTotal s) False (thopters s) (isCityUntapped s)
       (walker1State s)
       (card2State s)
@@ -283,26 +279,24 @@ clearMana p s
 
 changePhase :: GameState -> Phase -> GameState
 changePhase s ph
-  = GameState ph (activePlayer s) (clearMana Ozzie (ozzieState s))
-      (clearMana Brigyeetz (brigyeetzState s))
+  = GameState ph (activePlayer s) (clearMana (ozzieState s))
+      (clearMana (brigyeetzState s))
       False
 
-untapPlayer :: Player -> PlayerState -> PlayerState
-untapPlayer p s
+untapPlayer :: PlayerState -> PlayerState
+untapPlayer s
   = PlayerState (healthTotal s) (floatingMana s)
       (ThopterState 0
          (tappedThopters (thopters s) + summoningSickThopters (thopters s) +
             untappedUnsickThopters (thopters s))
          0)
       True
-      (mapCard Walker (untapCard Walker) (walker1State s))
-      (mapCard (card2ForPlayer p) (untapCard (card2ForPlayer p))
-         (card2State s))
+      (mapCard untapCard (walker1State s))
+      (mapCard untapCard (card2State s))
       (deck s)
 
 untapActivePlayer :: GameState -> GameState
-untapActivePlayer s
-  = withPlayer s (activePlayer s) (untapPlayer (activePlayer s))
+untapActivePlayer s = withPlayer s (activePlayer s) untapPlayer
 
 endTurn :: GameState -> GameState
 endTurn s
@@ -316,5 +310,5 @@ endTurn s
 
 walkerSize :: CardPosition -> Natural
 walkerSize (OnBattlefield (CWalkerState st)) = nCounters st
-walkerSize s = 0
+walkerSize _ = 0
 
