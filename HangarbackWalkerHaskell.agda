@@ -535,14 +535,13 @@ tapAttackers a s = record s
     }
 {-# COMPILE AGDA2HS tapAttackers #-}
 
-{-
 clearMana : ∀ {p} → PlayerState p → PlayerState p
 clearMana s = record s { floatingMana = false }
+{-# COMPILE AGDA2HS clearMana #-}
 
-module _ (s : GameState) where
-    open GameState s
-    changePhase : Phase → GameState
-    changePhase ph = record s { phase = ph ; ozzieState = clearMana ozzieState ; brigyeetzState = clearMana brigyeetzState ; lastPlayerPassed = false}
+changePhase : (s : GameState) → Phase → GameState
+changePhase s ph = record s { phase = ph ; ozzieState = clearMana (ozzieState s) ; brigyeetzState = clearMana (brigyeetzState s) ; lastPlayerPassed = false}
+{-# COMPILE AGDA2HS changePhase #-}
 
 untapPlayer : ∀ {p} → PlayerState p → PlayerState p
 untapPlayer s = record s
@@ -555,22 +554,24 @@ untapPlayer s = record s
     ; card2State = mapCard untapCard (card2State s)
     ; isCityUntapped = true
     }
+{-# COMPILE AGDA2HS untapPlayer #-}
 
 untapActivePlayer : GameState → GameState
 untapActivePlayer s = withPlayer s (GameState.activePlayer s) untapPlayer
+{-# COMPILE AGDA2HS untapActivePlayer #-}
 
 endTurn : GameState → GameState
 endTurn s = drawCard (untapActivePlayer (record (changePhase s PreCombatMain) { activePlayer = opponentOf (GameState.activePlayer s)}))
+{-# COMPILE AGDA2HS endTurn #-}
 
 -- TODO: Disallow invalid states
-walkerSize : ∀ {c} → CardPosition c → ℕ
-walkerSize {Walker} InHand = 0
-walkerSize {Walker} InGraveyard = 0
-walkerSize {Walker} InDeck = 0
-walkerSize {Walker} (OnBattlefield x) = WalkerState.nCounters x
-walkerSize {Elixir} s = 0
+walkerSize : ∀ {@0 c} → CardPosition c → ℕ
+walkerSize (OnBattlefield (CWalkerState st)) = WalkerState.nCounters st
+walkerSize s = 0
+{-# COMPILE AGDA2HS walkerSize #-}
 
 
+{-
 reduceHealthTotal : ∀ {p} → ℕ → PlayerState p → PlayerState p
 reduceHealthTotal n s = record s { healthTotal = healthTotal s ∸ n }
 module _ {p} {pps : AttackContext} {bc : BlockerContext} where

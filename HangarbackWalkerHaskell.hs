@@ -274,3 +274,47 @@ tapAttackers p a s
          else card2State s)
       (deck s)
 
+clearMana :: Player -> PlayerState -> PlayerState
+clearMana p s
+  = PlayerState (healthTotal s) False (thopters s) (isCityUntapped s)
+      (walker1State s)
+      (card2State s)
+      (deck s)
+
+changePhase :: GameState -> Phase -> GameState
+changePhase s ph
+  = GameState ph (activePlayer s) (clearMana Ozzie (ozzieState s))
+      (clearMana Brigyeetz (brigyeetzState s))
+      False
+
+untapPlayer :: Player -> PlayerState -> PlayerState
+untapPlayer p s
+  = PlayerState (healthTotal s) (floatingMana s)
+      (ThopterState 0
+         (tappedThopters (thopters s) + summoningSickThopters (thopters s) +
+            untappedUnsickThopters (thopters s))
+         0)
+      True
+      (mapCard Walker (untapCard Walker) (walker1State s))
+      (mapCard (card2ForPlayer p) (untapCard (card2ForPlayer p))
+         (card2State s))
+      (deck s)
+
+untapActivePlayer :: GameState -> GameState
+untapActivePlayer s
+  = withPlayer s (activePlayer s) (untapPlayer (activePlayer s))
+
+endTurn :: GameState -> GameState
+endTurn s
+  = drawCard
+      (untapActivePlayer
+         (GameState (phase (changePhase s PreCombatMain))
+            (opponentOf (activePlayer s))
+            (ozzieState (changePhase s PreCombatMain))
+            (brigyeetzState (changePhase s PreCombatMain))
+            (lastPlayerPassed (changePhase s PreCombatMain))))
+
+walkerSize :: CardPosition -> Natural
+walkerSize (OnBattlefield (CWalkerState st)) = nCounters st
+walkerSize s = 0
+
