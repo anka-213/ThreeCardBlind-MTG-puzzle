@@ -241,3 +241,36 @@ activateElixir s
     newDeck InDeck = [Walker, Elixir]
     newDeck _ = [Elixir]
 
+mapCard ::
+        Card -> (CardState -> CardState) -> CardPosition -> CardPosition
+mapCard c f (OnBattlefield x) = OnBattlefield (f x)
+mapCard c f x = x
+
+tapCard :: Card -> CardState -> CardState
+tapCard Walker (CWalkerState st)
+  = CWalkerState
+      (WalkerState True (summoningSickness st) (nCounters st))
+tapCard Elixir st = st
+
+untapCard :: Card -> CardState -> CardState
+untapCard Walker (CWalkerState st)
+  = CWalkerState (WalkerState False False (nCounters st))
+untapCard Elixir st = st
+
+tapAttackers ::
+             Player -> AttackerInfo -> PlayerState -> PlayerState
+tapAttackers p a s
+  = PlayerState (healthTotal s) (floatingMana s)
+      (ThopterState (tappedThopters (thopters s) + thoptersAttack a)
+         (untappedUnsickThopters (thopters s) - thoptersAttack a)
+         (summoningSickThopters (thopters s)))
+      (isCityUntapped s)
+      (if walker1Attack a then
+         mapCard Walker (tapCard Walker) (walker1State s) else
+         walker1State s)
+      (if walker2Attack a then
+         mapCard (card2ForPlayer p) (tapCard (card2ForPlayer p))
+           (card2State s)
+         else card2State s)
+      (deck s)
+
