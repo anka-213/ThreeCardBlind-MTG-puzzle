@@ -392,3 +392,13 @@ doNothing s
                      (brigyeetzState s)
                      False)
 
+data Action = ACastWalker1 Player
+            | ACastWalker2
+            | ACastElixir
+            | AActivateWalker1 Player
+            | AActivateWalker2
+            | AActivateElixir
+            | ADeclareAttackers Player AttackerInfo
+            | ADoNothing Player
+                deriving (Show, Eq, Ord)
+
