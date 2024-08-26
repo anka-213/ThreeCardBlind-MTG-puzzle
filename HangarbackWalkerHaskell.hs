@@ -197,3 +197,47 @@ castElixir s
       (OnBattlefield CElixirState)
       (deck s)
 
+activateWalker :: CardPosition -> CardPosition
+activateWalker
+  (OnBattlefield (CWalkerState (WalkerState False False n)))
+  = OnBattlefield (CWalkerState (WalkerState True False (1 + n)))
+
+activateWalker1 :: Player -> PlayerState -> PlayerState
+activateWalker1 p s
+  = PlayerState (healthTotal (consumeMana s One))
+      (floatingMana (consumeMana s One))
+      (thopters (consumeMana s One))
+      (isCityUntapped (consumeMana s One))
+      (activateWalker (walker1State s))
+      (card2State (consumeMana s One))
+      (deck (consumeMana s One))
+
+activateWalker2 :: PlayerState -> PlayerState
+activateWalker2 s
+  = PlayerState (healthTotal (consumeMana s One))
+      (floatingMana (consumeMana s One))
+      (thopters (consumeMana s One))
+      (isCityUntapped (consumeMana s One))
+      (walker1State (consumeMana s One))
+      (activateWalker (card2State s))
+      (deck (consumeMana s One))
+
+activateElixir :: PlayerState -> PlayerState
+activateElixir s
+  = PlayerState (5 + healthTotal s) (floatingMana s) (thopters s)
+      (isCityUntapped s)
+      (graveyard2deck (walker1State s))
+      InDeck
+      (newDeck walkerPosition)
+  where
+    graveyard2deck :: CardPosition -> CardPosition
+    graveyard2deck InHand = InHand
+    graveyard2deck InGraveyard = InDeck
+    graveyard2deck InDeck = InDeck
+    graveyard2deck (OnBattlefield x) = OnBattlefield x
+    walkerPosition :: CardPosition
+    walkerPosition = graveyard2deck (walker1State s)
+    newDeck :: CardPosition -> [Card]
+    newDeck InDeck = [Walker, Elixir]
+    newDeck _ = [Elixir]
+

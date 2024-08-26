@@ -471,35 +471,39 @@ data canActivateWalker : CardPosition Walker → Set where
 canActivateWalker2 : ∀ {p} → p ≡ Brigyeetz → CardPosition (card2ForPlayer p) → Set
 canActivateWalker2 refl s = canActivateWalker s
 
-{-
 -- activateWalker1 : ∀ {p} → canActivateWalker  →  PlayerState p → PlayerState p
 -- activateWalker1 _ s = record s { floatingMana = false ; walker1State = OnBattlefield walkerInitialState }
 
-activateWalker : ∀ (s : CardPosition Walker) (canActivate : canActivateWalker s) → CardPosition Walker
-activateWalker .(OnBattlefield (record { isTapped = false ; summoningSickness = false ; nCounters = n })) (valid n) = OnBattlefield record { isTapped = true ; summoningSickness = false ; nCounters = 1 + n}
+activateWalker : ∀ (s : CardPosition Walker) (@0 canActivate : canActivateWalker s) → CardPosition Walker
+activateWalker (OnBattlefield (CWalkerState (record { isTapped = false ; summoningSickness = false ; nCounters = n }))) (valid n) = OnBattlefield (CWalkerState record { isTapped = true ; summoningSickness = false ; nCounters = 1 + n})
+{-# COMPILE AGDA2HS activateWalker #-}
 
-activateWalker1 : ∀ {p} (s : PlayerState p) (hasMana : HasMana s 1) (canActivate : canActivateWalker (walker1State s)) → PlayerState p
-activateWalker1 s hasMana ca = record (consumeMana s 1 hasMana) { walker1State = activateWalker (walker1State s) ca}
+activateWalker1 : ∀ {p} (s : PlayerState p) (@0 hasMana : HasMana s One) (@0 canActivate : canActivateWalker (walker1State s)) → PlayerState p
+activateWalker1 s hasMana ca = record (consumeMana s One hasMana) { walker1State = activateWalker (walker1State s) ca}
+{-# COMPILE AGDA2HS activateWalker1 #-}
 
-activateWalker2 : ∀ (s : PlayerState Brigyeetz) (hasMana : HasMana s 1) (canActivate : canActivateWalker (card2State s)) → PlayerState Brigyeetz
-activateWalker2 s hasMana ca = record (consumeMana s 1 hasMana) { card2State = activateWalker (card2State s) ca}
+activateWalker2 : ∀ (s : PlayerState Brigyeetz) (@0 hasMana : HasMana s One) (@0 canActivate : canActivateWalker (card2State s)) → PlayerState Brigyeetz
+activateWalker2 s hasMana ca = record (consumeMana s One hasMana) { card2State = activateWalker (card2State s) ca}
+{-# COMPILE AGDA2HS activateWalker2 #-}
 
 activateElixir : ∀ (s : PlayerState Ozzie) → PlayerState Ozzie
-activateElixir s = record s { healthTotal = 5 + healthTotal s ; walker1State = graveyard2deck (walker1State s) ; card2State = inDeck ; deck = newDeck walkerPosition}
+activateElixir s = record s { healthTotal = 5 + healthTotal s ; walker1State = graveyard2deck (walker1State s) ; card2State = InDeck ; deck = newDeck walkerPosition}
   where
     graveyard2deck : CardPosition Walker → CardPosition Walker
     graveyard2deck InHand = InHand
-    graveyard2deck inGraveyard = inDeck -- TODO: Shuffle
-    graveyard2deck inDeck = inDeck -- TODO: Shuffle
+    graveyard2deck InGraveyard = InDeck -- TODO: Shuffle
+    graveyard2deck InDeck = InDeck -- TODO: Shuffle
     graveyard2deck (OnBattlefield x) = OnBattlefield x
 
     walkerPosition = graveyard2deck (walker1State s)
 
     -- TODO: Allow opponent to select order
     newDeck : CardPosition Walker → List Card
-    newDeck inDeck = Walker ∷ Elixir ∷ []
+    newDeck InDeck = Walker ∷ Elixir ∷ []
     newDeck _ = Elixir ∷ []
+{-# COMPILE AGDA2HS activateElixir #-}
 
+{-
 data isMain : Phase → Set where
     main1 : isMain PreCombatMain
     main2 : isMain postCombatMain
@@ -519,8 +523,8 @@ data isMain : Phase → Set where
 
 mapCard : ∀ {c} → (CardState c → CardState c) → CardPosition c → CardPosition c
 mapCard f InHand = InHand
-mapCard f inGraveyard = inGraveyard
-mapCard f inDeck = inDeck
+mapCard f InGraveyard = InGraveyard
+mapCard f InDeck = InDeck
 mapCard f (OnBattlefield x) = OnBattlefield (f x)
 
 tapCard : ∀ {c} → CardState c → CardState c
@@ -570,8 +574,8 @@ endTurn s = drawCard (untapActivePlayer (record (changePhase s PreCombatMain) { 
 -- TODO: Disallow invalid states
 walkerSize : ∀ {c} → CardPosition c → ℕ
 walkerSize {Walker} InHand = 0
-walkerSize {Walker} inGraveyard = 0
-walkerSize {Walker} inDeck = 0
+walkerSize {Walker} InGraveyard = 0
+walkerSize {Walker} InDeck = 0
 walkerSize {Walker} (OnBattlefield x) = WalkerState.nCounters x
 walkerSize {Elixir} s = 0
 
