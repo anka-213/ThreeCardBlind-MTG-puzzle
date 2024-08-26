@@ -354,3 +354,9 @@ takeDamage ::
 takeDamage a b attacker defender
   = reduceHealthTotal (calculateDamage a b attacker) defender
 
+resolveCombat ::
+              GameState -> AttackerInfo -> BlockerInfo -> GameState
+resolveCombat s a b
+  = withPlayer s (opponentOf (activePlayer s))
+      (takeDamage a b (stateOfPlayer s (activePlayer s)))
+

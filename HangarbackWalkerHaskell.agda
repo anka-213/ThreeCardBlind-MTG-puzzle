@@ -314,7 +314,10 @@ module _ (s : GameState) where
     opponentState : PlayerState opponent
     opponentState = stateOfPlayer opponent
 
+-- {-# COMPILE AGDA2HS opponent #-}
 {-# COMPILE AGDA2HS stateOfPlayer #-}
+-- {-# COMPILE AGDA2HS activePlayerState #-}
+-- {-# COMPILE AGDA2HS opponentState #-}
 -- TODO: Maybe add priority field to game state to tell who can do an action
 
 module _ (s : GameState) where
@@ -603,29 +606,28 @@ module _ {@0 p} {@0 pps : AttackContext} {@0 bc : BlockerContext} where
     -- TODO: Handle thopters
     -- TODO: Destroy smaller creatures
 
-{-
-module _ (s : GameState) where
-    open GameState s
-    resolveCombat : ∀ {pps : AttackContext} {bc : BlockerContext} → (a : AttackerInfo pps) → (b : BlockerInfo pps a bc) → (phase ≡ Combat (DeclaredBlockers pps a b)) → GameState
-    resolveCombat a b r = withPlayer s opponent (takeDamage a b (activePlayerState))
-    -- TODO: Handle blockers
-    -- TODO: Allow choosing order of attacking blockers
+resolveCombat : ∀ (s : GameState) {@0 pps : AttackContext} {@0 bc : BlockerContext} → (a : AttackerInfo pps) → (b : BlockerInfo pps a bc) → @0 (phase s ≡ Combat (DeclaredBlockers pps a b)) → GameState
+resolveCombat s a b r = withPlayer s (opponentOf (activePlayer s)) (takeDamage a b (stateOfPlayer s (activePlayer s)))
+-- TODO: Handle blockers
+-- TODO: Allow choosing order of attacking blockers
 {-# COMPILE AGDA2HS resolveCombat #-}
 
 
-
+{-
 
 endPhase : GameState → GameState
 endPhase s@record { phase = PreCombatMain } = changePhase s (Combat CombatStart)
 endPhase s@record { phase = Combat CombatStart } = changePhase s PostCombatMain -- If no attackers are declared, skip Combat
-endPhase s@record { phase = Combat (DeclaredAttackers pps a) } = changePhase s (Combat (DeclaredBlockers pps a (noBlockers pps a (blockerContextFor (GameState.opponentState s)))))
+endPhase s@record { phase = Combat (DeclaredAttackers pps a) } = changePhase s (Combat (DeclaredBlockers pps a (noBlockers pps a (blockerContextFor (opponentState s)))))
 endPhase s@record { phase = Combat (DeclaredBlockers pps a b) } = changePhase (resolveCombat s a b refl) PostCombatMain
 endPhase s@record { phase = PostCombatMain } = endTurn s
+{-# COMPILE AGDA2HS endPhase #-}
 
 
 doNothing : ∀ (p : Player) (s : GameState) → GameState
 doNothing p s@record {lastPlayerPassed = false} = record s { lastPlayerPassed = true }
 doNothing p s@record {lastPlayerPassed = true} = endPhase (record s { lastPlayerPassed = false })
+{-# COMPILE AGDA2HS doNothing #-}
 
 -- Actions
 module _ (s : GameState) where
