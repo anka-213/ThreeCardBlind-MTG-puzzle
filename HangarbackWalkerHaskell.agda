@@ -656,25 +656,28 @@ data Action (@0 s : GameState) : @0 Player → Set where
     AActivateWalker2 : ∀ (@0 hasMana : HasMana (brigyeetzState s) One) (@0 canActivate : canActivateWalker (card2State (brigyeetzState s))) → Action s Brigyeetz
     AActivateElixir : ∀ (@0 hasMana : HasMana (ozzieState s) Two) (@0 canActivate : card2State (ozzieState s) ≡ OnBattlefield CElixirState) → Action s Ozzie
     ADeclareAttackers : ∀ {p} (@0 inCombat : phase s ≡ Combat CombatStart) (@0 isActive : p ≡ activePlayer s) (atcks : AttackerInfo (attackContextFor (activePlayerState s))) → Action s p
-    ADeclareBlockers : ∀ {p} {pps : AttackContext} (atcks : AttackerInfo pps) (inCombat2 : phase s ≡ Combat (DeclaredAttackers pps atcks)) (isOpponent : opponentOf p ≡ activePlayer s) (blcks : BlockerInfo pps atcks (blockerContextFor (opponentState s))) → Action s p
+    ADeclareBlockers : ∀ {p} {@0 pps : AttackContext} (atcks : AttackerInfo pps) (@0 inCombat2 : phase s ≡ Combat (DeclaredAttackers pps atcks)) (@0 isOpponent : opponentOf p ≡ activePlayer s) (blcks : BlockerInfo pps atcks (blockerContextFor (opponentState s))) → Action s p
     ADoNothing : ∀ {p} → Action s p
 {-# COMPILE AGDA2HS Action deriving (Show, Eq, Ord) #-}
 
--- performAction : ∀ s p → Action s p → GameState
--- performAction s p (ACastWalker1 curPl inMain hasMana isInHand) = withPlayerCost s p Two hasMana castWalker1
--- performAction s p (ACastWalker2 currBrigyeetz inMain hasMana isInHand) = withPlayerCost s Brigyeetz Two hasMana castWalker2
--- performAction s p (ACastElixir currOzzie inMain hasMana isInHand) = withPlayerCost s Ozzie One hasMana castElixir
--- performAction s p (AActivateWalker1 hasMana canActivate) = setPlayerState s p (activateWalker1 (stateOfPlayer s p) hasMana canActivate)
--- performAction s p (AActivateWalker2 hasMana canActivate) = setPlayerState s Brigyeetz (activateWalker2 (brigyeetzState s) hasMana canActivate)
--- performAction s p (AActivateElixir hasMana canActivate) = withPlayerCost s Ozzie Two hasMana activateElixir
--- performAction s p (ADeclareAttackers phs curPl atcks) = withPlayer (changePhase s (Combat (DeclaredAttackers _ atcks))) (activePlayer s) (tapAttackers atcks) -- record s { phase =  ; lastPlayerPassed = false}
--- performAction s p (ADeclareBlockers atcks phs curPl blcks) = changePhase s (Combat (DeclaredBlockers _ atcks blcks))
--- performAction s p (ADoNothing) = doNothing s
-    -- _⇒_ : GameState → Set
-    -- _⇒_ = Action
+performAction : ∀ s (@0 p) → Action s p → GameState
+performAction s p act = case act of λ where
+    (ACastWalker1 curPl inMain hasMana isInHand) → withPlayerCost s p Two hasMana castWalker1
+    (ACastWalker2 currBrigyeetz inMain hasMana isInHand) → withPlayerCost s Brigyeetz Two hasMana castWalker2
+    (ACastElixir currOzzie inMain hasMana isInHand) → withPlayerCost s Ozzie One hasMana castElixir
+    (AActivateWalker1 hasMana canActivate) → setPlayerState s p (activateWalker1 (stateOfPlayer s p) hasMana canActivate)
+    (AActivateWalker2 hasMana canActivate) → setPlayerState s Brigyeetz (activateWalker2 (brigyeetzState s) hasMana canActivate)
+    (AActivateElixir hasMana canActivate) → withPlayerCost s Ozzie Two hasMana activateElixir
+    (ADeclareAttackers phs curPl atcks) → withPlayer (changePhase s (Combat (DeclaredAttackers _ atcks))) p (tapAttackers atcks) -- record s { phase =  ; lastPlayerPassed = false}
+    (ADeclareBlockers atcks phs curPl blcks) → changePhase s (Combat (DeclaredBlockers _ atcks blcks))
+    (ADoNothing) → doNothing s
+{-# COMPILE AGDA2HS performAction #-}
+
 
 {-
 
+    -- _⇒_ : GameState → Set
+    -- _⇒_ = Action
     data Step : (s : GameState) → Set where
         doAction : ∀ p → (a : Action p) → Step (performAction p a)
 

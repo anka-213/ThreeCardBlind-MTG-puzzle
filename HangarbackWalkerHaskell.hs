@@ -399,6 +399,26 @@ data Action = ACastWalker1 Player
             | AActivateWalker2
             | AActivateElixir
             | ADeclareAttackers Player AttackerInfo
+            | ADeclareBlockers Player AttackerInfo BlockerInfo
             | ADoNothing Player
                 deriving (Show, Eq, Ord)
+
+performAction :: GameState -> Action -> GameState
+performAction s act
+  = case act of
+        ACastWalker1 p -> withPlayerCost s p Two castWalker1
+        ACastWalker2 -> withPlayerCost s Brigyeetz Two castWalker2
+        ACastElixir -> withPlayerCost s Ozzie One castElixir
+        AActivateWalker1 p -> setPlayerState s p
+                                (activateWalker1 (stateOfPlayer s p))
+        AActivateWalker2 -> setPlayerState s Brigyeetz
+                              (activateWalker2 (brigyeetzState s))
+        AActivateElixir -> withPlayerCost s Ozzie Two activateElixir
+        ADeclareAttackers p atcks -> withPlayer
+                                       (changePhase s (Combat (DeclaredAttackers atcks)))
+                                       p
+                                       (tapAttackers atcks)
+        ADeclareBlockers p atcks blcks -> changePhase s
+                                            (Combat (DeclaredBlockers atcks blcks))
+        ADoNothing p -> doNothing s
 
