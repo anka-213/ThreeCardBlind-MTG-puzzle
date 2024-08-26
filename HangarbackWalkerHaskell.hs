@@ -312,3 +312,45 @@ walkerSize :: CardPosition -> Natural
 walkerSize (OnBattlefield (CWalkerState st)) = nCounters st
 walkerSize _ = 0
 
+reduceHealthTotal :: Natural -> PlayerState -> PlayerState
+reduceHealthTotal n s
+  = PlayerState (healthTotal s - n) (floatingMana s) (thopters s)
+      (isCityUntapped s)
+      (walker1State s)
+      (card2State s)
+      (deck s)
+
+damageFromWalker1 ::
+                  CardPosition -> AttackerInfo -> BlockerInfo -> Natural
+damageFromWalker1 _ (AttackerInfo _ False _) b = 0
+damageFromWalker1 _ (AttackerInfo _ True _)
+  (BlockerInfo _ True _ _ _) = 0
+damageFromWalker1 _ (AttackerInfo _ True _)
+  (BlockerInfo _ _ _ (Just BlockWalker1) _) = 0
+damageFromWalker1 _ (AttackerInfo _ True _)
+  (BlockerInfo _ _ _ _ (Just BlockWalker1)) = 0
+damageFromWalker1 wSt (AttackerInfo _ True _) _ = walkerSize wSt
+
+damageFromWalker2 ::
+                  CardPosition -> AttackerInfo -> BlockerInfo -> Natural
+damageFromWalker2 _ (AttackerInfo _ _ False) b = 0
+damageFromWalker2 _ (AttackerInfo _ _ True)
+  (BlockerInfo _ _ True _ _) = 0
+damageFromWalker2 _ (AttackerInfo _ _ True)
+  (BlockerInfo _ _ _ (Just BlockWalker2) _) = 0
+damageFromWalker2 _ (AttackerInfo _ _ True)
+  (BlockerInfo _ _ _ _ (Just BlockWalker2)) = 0
+damageFromWalker2 wSt (AttackerInfo _ _ True) _ = walkerSize wSt
+
+calculateDamage ::
+                AttackerInfo -> BlockerInfo -> PlayerState -> Natural
+calculateDamage a b attacker
+  = thoptersAttack a + damageFromWalker1 (walker1State attacker) a b
+      + damageFromWalker2 (card2State attacker) a b
+
+takeDamage ::
+           AttackerInfo ->
+             BlockerInfo -> PlayerState -> PlayerState -> PlayerState
+takeDamage a b attacker defender
+  = reduceHealthTotal (calculateDamage a b attacker) defender
+

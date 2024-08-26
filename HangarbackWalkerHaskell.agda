@@ -14,8 +14,8 @@ open import Data.Sum.Base
 open import Data.List hiding (drop)
 -- open import Haskell.Prelude using (List ; drop ; [])
 -- open import Haskell.Prelude using (Int)
-open import Haskell.Prelude using (if_then_else_)
-open import Data.Maybe
+open import Haskell.Prelude using (if_then_else_ ; Maybe ; Just ; Nothing ; maybe)
+-- open import Data.Maybe
 open import Relation.Nullary
 open import Relation.Binary.Construct.Closure.ReflexiveTransitive
 open import Relation.Binary.Construct.Closure.ReflexiveTransitive.Properties
@@ -219,8 +219,8 @@ module _ (@0 ac : AttackContext) where
     {-# COMPILE AGDA2HS BlockTarget deriving (Show, Eq, Ord) #-}
 
     maybe2nat : {A : Set} → Maybe A → ℕ
-    maybe2nat (just _) = 1
-    maybe2nat nothing = 0
+    maybe2nat (Just _) = 1
+    maybe2nat Nothing = 0
 
     bool2nat : Bool → ℕ
     bool2nat true = 1
@@ -237,9 +237,9 @@ module _ (@0 ac : AttackContext) where
             @0 thopter₋block₋walker2₋valid : if thopter₋block₋walker2 then T (walker2Attack a) else ⊤
             @0 total₋thopters : bool2nat thopter₋block₋walker1 + bool2nat thopter₋block₋walker2 + thopter₋thopter₋blocks ≤ BlockerContext.availableThopters bc
             walker1Block : Maybe (BlockTarget a)
-            @0 walker1Block₋valid : if is-just walker1Block then T (BlockerContext.availableWalker1 bc) else ⊤
+            @0 walker1Block₋valid : maybe ⊤ (λ _ → T (BlockerContext.availableWalker1 bc)) walker1Block
             walker2Block : Maybe (BlockTarget a)
-            @0 walker2Block₋valid : if is-just walker2Block then T (BlockerContext.availableWalker2 bc) else ⊤
+            @0 walker2Block₋valid : maybe ⊤ (λ _ → T (BlockerContext.availableWalker2 bc)) walker2Block
 
     open BlockerInfo public
     {-# COMPILE AGDA2HS BlockerInfo deriving (Show, Eq, Ord) #-}
@@ -254,9 +254,6 @@ module _ (@0 ac : AttackContext) where
     block thopters with walkers
 
     -}
-
-    Nothing : ∀ {A : Set} → Maybe A
-    Nothing = nothing
 
     noBlockers : ∀ (@0 a) (@0 bc) → BlockerInfo a bc
     noBlockers a bc = record
@@ -574,37 +571,48 @@ walkerSize _ = 0
 {-# COMPILE AGDA2HS walkerSize #-}
 
 
-{-
-reduceHealthTotal : ∀ {p} → ℕ → PlayerState p → PlayerState p
+reduceHealthTotal : ∀ {@0 p} → ℕ → PlayerState p → PlayerState p
 reduceHealthTotal n s = record s { healthTotal = healthTotal s ∸ n }
-module _ {p} {pps : AttackContext} {bc : BlockerContext} where
-    damageFromWalker1 : (CardPosition Walker) → (a : AttackerInfo pps) → BlockerInfo pps a bc → ℕ
-    damageFromWalker1 wSt record { walker1Attack = nothing} b = 0
-    damageFromWalker1 wSt record { walker1Attack = just _ } record { thopter₋block₋walker1 = just _ } = 0
-    damageFromWalker1 wSt record { walker1Attack = just _ } record { walker1Block = just (blockWalker1 _ , _) } = 0
-    damageFromWalker1 wSt record { walker1Attack = just _ } record { walker2Block = just (blockWalker1 _ , _) } = 0
-    damageFromWalker1 wSt record { walker1Attack = just _ } _ = walkerSize wSt
+{-# COMPILE AGDA2HS reduceHealthTotal #-}
 
-    damageFromWalker2 : ∀ {c} → (CardPosition c) → (a : AttackerInfo pps) → BlockerInfo pps a bc → ℕ
-    damageFromWalker2 wSt record { walker2Attack = nothing} b = 0
-    damageFromWalker2 wSt record { walker2Attack = just _ } record { thopter₋block₋walker2 = just _ } = 0
-    damageFromWalker2 wSt record { walker2Attack = just _ } record { walker1Block = just (blockWalker2 _ , _) } = 0
-    damageFromWalker2 wSt record { walker2Attack = just _ } record { walker2Block = just (blockWalker2 _ , _) } = 0
-    damageFromWalker2 wSt record { walker2Attack = just _ } _ = walkerSize wSt
-    calculateDamage : ∀ (a : AttackerInfo pps) (b : BlockerInfo pps a bc) → PlayerState p → PlayerState (opponentOf p) → ℕ
-    calculateDamage a b attacker defender = AttackerInfo.thoptersAttack a + damageFromWalker1 (walker1State attacker) a b + damageFromWalker2 (card2State attacker) a b
+module _ {@0 p} {@0 pps : AttackContext} {@0 bc : BlockerContext} where
+    damageFromWalker1 : (CardPosition Walker) → (a : AttackerInfo pps) → BlockerInfo pps a bc → ℕ
+    damageFromWalker1 _   record { walker1Attack = false} b = 0
+    damageFromWalker1 _   record { walker1Attack = true } record { thopter₋block₋walker1 = true } = 0
+    damageFromWalker1 _   record { walker1Attack = true } record { walker1Block = Just (BlockWalker1 _) } = 0
+    damageFromWalker1 _   record { walker1Attack = true } record { walker2Block = Just (BlockWalker1 _) } = 0
+    damageFromWalker1 wSt record { walker1Attack = true } _ = walkerSize wSt
+    {-# COMPILE AGDA2HS damageFromWalker1 #-}
+
+    damageFromWalker2 : ∀ {@0 c} → (CardPosition c) → (a : AttackerInfo pps) → BlockerInfo pps a bc → ℕ
+    damageFromWalker2 _   record { walker2Attack = false} b = 0
+    damageFromWalker2 _   record { walker2Attack = true } record { thopter₋block₋walker2 = true } = 0
+    damageFromWalker2 _   record { walker2Attack = true } record { walker1Block = Just (BlockWalker2 _) } = 0
+    damageFromWalker2 _   record { walker2Attack = true } record { walker2Block = Just (BlockWalker2 _) } = 0
+    damageFromWalker2 wSt record { walker2Attack = true } _ = walkerSize wSt
+    {-# COMPILE AGDA2HS damageFromWalker2 #-}
+
+    calculateDamage : ∀ (a : AttackerInfo pps) (b : BlockerInfo pps a bc) → PlayerState p → ℕ
+    calculateDamage a b attacker = AttackerInfo.thoptersAttack a + damageFromWalker1 (walker1State attacker) a b + damageFromWalker2 (card2State attacker) a b
+    {-# COMPILE AGDA2HS calculateDamage #-}
+
     takeDamage : ∀ (a : AttackerInfo pps) (b : BlockerInfo pps a bc) → PlayerState p → PlayerState (opponentOf p) → PlayerState (opponentOf p)
-    takeDamage a b attacker defender = reduceHealthTotal (calculateDamage a b attacker defender) defender
+    takeDamage a b attacker defender = reduceHealthTotal (calculateDamage a b attacker) defender
+    {-# COMPILE AGDA2HS takeDamage #-}
 
     -- TODO: Handle thopters
     -- TODO: Destroy smaller creatures
 
+{-
 module _ (s : GameState) where
     open GameState s
     resolveCombat : ∀ {pps : AttackContext} {bc : BlockerContext} → (a : AttackerInfo pps) → (b : BlockerInfo pps a bc) → (phase ≡ Combat (DeclaredBlockers pps a b)) → GameState
     resolveCombat a b r = withPlayer s opponent (takeDamage a b (activePlayerState))
     -- TODO: Handle blockers
     -- TODO: Allow choosing order of attacking blockers
+{-# COMPILE AGDA2HS resolveCombat #-}
+
+
 
 
 endPhase : GameState → GameState
@@ -753,7 +761,7 @@ losingGame p st = ∀ action → winningGame (opponentOf p) (performAction st p 
 
 -- Possible simpl: each player performs any number of actions in each phase, first active player, then opponent
 
--- Alternative method: add priority variable and just skip when you do not have priority
+-- Alternative method: add priority variable and Just skip when you do not have priority
 -- Or do multiple at once
 
 
@@ -812,17 +820,17 @@ big₋Walker₋game₋wins s@record
         ; card2State = OnBattlefield record { isTapped = false ; summoningSickness = false ; nCounters = size2 }
         }
     } (big1 , big2 , refl) = willWin nonZero
-        ((aDeclareAttackers refl refl (record { thoptersAttack = 0 , z≤n ; walker1Attack = just tt ; walker2Attack = just tt })) , λ where
+        ((aDeclareAttackers refl refl (record { thoptersAttack = 0 , z≤n ; walker1Attack = Just tt ; walker2Attack = Just tt })) , λ where
             -- (aDeclareBlockers _attck refl refl record { thopter₋thopter₋blocks = th₋th₋bl ; thopter₋block₋walker1 = tbw1 ; thopter₋block₋walker2 = tbw2 ; total₋thopters = total₋thopters ; walker1Block = walker1Block ; walker2Block = walker2Block }) → {! tbw1 total₋thopters  !}
-            (aDeclareBlockers _attck refl refl record { thopter₋block₋walker1 = just x ; total₋thopters = () })
-            (aDeclareBlockers _attck refl refl record { thopter₋block₋walker1 = nothing ; thopter₋block₋walker2 = just x ; total₋thopters = () })
-            (aDeclareBlockers _attck refl refl record { thopter₋thopter₋blocks = suc _ , _ ; thopter₋block₋walker1 = nothing ; thopter₋block₋walker2 = nothing ; total₋thopters = () })
-            (aDeclareBlockers _attck refl refl record { thopter₋thopter₋blocks = 0 , _ ; thopter₋block₋walker1 = nothing  ; thopter₋block₋walker2 = nothing ; walker1Block = w1b ; walker2Block = just (_ , ()) })
-            (aDeclareBlockers _attck refl refl record { thopter₋thopter₋blocks = 0 , _ ; thopter₋block₋walker1 = nothing  ; thopter₋block₋walker2 = nothing ; walker1Block = nothing ; walker2Block = nothing }) → willWin nonZero (aDoNothing , (λ where
+            (aDeclareBlockers _attck refl refl record { thopter₋block₋walker1 = Just x ; total₋thopters = () })
+            (aDeclareBlockers _attck refl refl record { thopter₋block₋walker1 = Nothing ; thopter₋block₋walker2 = Just x ; total₋thopters = () })
+            (aDeclareBlockers _attck refl refl record { thopter₋thopter₋blocks = suc _ , _ ; thopter₋block₋walker1 = Nothing ; thopter₋block₋walker2 = Nothing ; total₋thopters = () })
+            (aDeclareBlockers _attck refl refl record { thopter₋thopter₋blocks = 0 , _ ; thopter₋block₋walker1 = Nothing  ; thopter₋block₋walker2 = Nothing ; walker1Block = w1b ; walker2Block = Just (_ , ()) })
+            (aDeclareBlockers _attck refl refl record { thopter₋thopter₋blocks = 0 , _ ; thopter₋block₋walker1 = Nothing  ; thopter₋block₋walker2 = Nothing ; walker1Block = Nothing ; walker2Block = Nothing }) → willWin nonZero (aDoNothing , (λ where
                 aDoNothing → hasWon (m≤n⇒m∸n≡0 {health} {size1 + size2} (≤-trans big1 (m≤m+n size1 size2)))))
-            (aDeclareBlockers _attck refl refl record { thopter₋thopter₋blocks = 0 , _ ; thopter₋block₋walker1 = nothing  ; thopter₋block₋walker2 = nothing ; walker1Block = just (blockWalker1 tgt , pf) ; walker2Block = nothing }) → willWin nonZero (aDoNothing , λ where
+            (aDeclareBlockers _attck refl refl record { thopter₋thopter₋blocks = 0 , _ ; thopter₋block₋walker1 = Nothing  ; thopter₋block₋walker2 = Nothing ; walker1Block = Just (BlockWalker1 tgt , pf) ; walker2Block = Nothing }) → willWin nonZero (aDoNothing , λ where
                 aDoNothing → hasWon (m≤n⇒m∸n≡0 big2))
-            (aDeclareBlockers _attck refl refl record { thopter₋thopter₋blocks = 0 , _ ; thopter₋block₋walker1 = nothing  ; thopter₋block₋walker2 = nothing ; walker1Block = just (blockWalker2 tgt , pf) ; walker2Block = nothing }) → willWin nonZero (aDoNothing , λ where
+            (aDeclareBlockers _attck refl refl record { thopter₋thopter₋blocks = 0 , _ ; thopter₋block₋walker1 = Nothing  ; thopter₋block₋walker2 = Nothing ; walker1Block = Just (BlockWalker2 tgt , pf) ; walker2Block = Nothing }) → willWin nonZero (aDoNothing , λ where
                 aDoNothing → hasWon (Relation.Binary.PropositionalEquality.trans (cong (health ∸_) (+-identityʳ size1)) (m≤n⇒m∸n≡0 {health} {size1} big1)))
             -- (aDeclareBlockers _attck refl refl record { thopter₋thopter₋blocks = thopter₋thopter₋blocks ; thopter₋block₋walker1 = thopter₋block₋walker1 ; thopter₋block₋walker2 = thopter₋block₋walker2 ; total₋thopters = total₋thopters ; walker1Block = walker1Block ; walker2Block = walker2Block }) → {! thopter₋thopter₋blocks thopter₋block₋walker1 thopter₋block₋walker2 total₋thopters walker1Block walker2Block  !}
             aDoNothing → willWin nonZero $ aDoNothing , λ where
