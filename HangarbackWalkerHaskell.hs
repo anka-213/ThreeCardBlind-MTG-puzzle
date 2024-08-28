@@ -473,13 +473,14 @@ canActivateElixir p s
       isCityUntapped (ozzieState s) &&
         card2State (ozzieState s) == OnBattlefield CElixirState
 
+canDeclareAttackers :: Player -> GameState -> Bool
+canDeclareAttackers p s
+  = phase s == Combat CombatStart && p == activePlayer s
+
 mbCastWalker1 :: Player -> GameState -> [Action]
 mbCastWalker1 p s
   = if canCastWalker1 p s then [ACastWalker1 p] else []
 
-availableActions :: Player -> GameState -> [Action]
-availableActions p s
-  = if
-      p == activePlayer s && walker1State (stateOfPlayer s p) == InHand
-      then [] else []
+availableActions :: Player -> GameState -> [[Action]]
+availableActions p s = [mbCastWalker1 p s]
 

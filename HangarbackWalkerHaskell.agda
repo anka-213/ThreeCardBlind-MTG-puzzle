@@ -12,10 +12,12 @@ open import Data.Bool hiding (_≤_ ; if_then_else_ ; _∧_ ; _∨_ ; T?)
 open import Data.Product
 open import Data.Sum.Base
 open import Data.List hiding (drop)
+open import Data.List.Relation.Unary.Any using (Any; here; there)
 -- open import Haskell.Prelude using (List ; drop ; [])
 -- open import Haskell.Prelude using (Int)
 open import Haskell.Prelude using (if_then_else_ ; case_of_ ; Maybe ; Just ; Nothing ; maybe)
-open import Haskell.Prelude using (Eq ; _==_ ; _&&_ ; _||_ )
+open import Haskell.Prelude using (Eq ; _==_ ; _&&_ ; _||_)
+open import Haskell.Prim using (magic)
 open import Haskell.Law.Eq
 -- using (IsLawfulEq ; isEquality )
 open import Haskell.Extra.Dec
@@ -689,6 +691,8 @@ postulate instance iPlayerEq : Eq Player
 postulate instance iPlayerLawfulEq : IsLawfulEq Player
 postulate instance iCardPositionEq : ∀ {c} → Eq (CardPosition c)
 postulate instance iCardPositionLawfulEq : ∀ {c} → IsLawfulEq (CardPosition c)
+postulate instance iPhaseEq : Eq Phase
+postulate instance iPhaseLawfulEq : IsLawfulEq Phase
 
 -- TODO: Move to new module
 _×-reflects_ : ∀ {A B : Set} {a b} → Reflects A a → Reflects B b →
@@ -798,8 +802,8 @@ CanActivateWalker2 : Player → GameState → Set
 CanActivateWalker2 p s = (p ≡ Brigyeetz) × (HasMana (brigyeetzState s) One) × (canActivateWalker (card2State (brigyeetzState s)))
 CanActivateElixir : Player → GameState → Set
 CanActivateElixir p s = (p ≡ Ozzie) × (HasMana (ozzieState s) Two) × (card2State (ozzieState s) ≡ OnBattlefield CElixirState)
--- CanDeclareAttackers : Player → GameState → Set
--- CanDeclareAttackers p s = (phase s ≡ Combat CombatStart) × (p ≡ activePlayer s) (atcks : AttackerInfo (attackContextFor (activePlayerState s)))
+CanDeclareAttackers : Player → GameState → Set
+CanDeclareAttackers p s = (phase s ≡ Combat CombatStart) × (p ≡ activePlayer s) -- (atcks : AttackerInfo (attackContextFor (activePlayerState s)))
 -- CanDeclareBlockers : Player → GameState → Set
 -- CanDeclareBlockers p s = {p} {@0 pps : AttackContext} (atcks : AttackerInfo pps) (@0 inCombat2 : phase s ≡ Combat (DeclaredAttackers pps atcks)) (@0 isOpponent : opponentOf p ≡ activePlayer s) (blcks : BlockerInfo pps atcks (blockerContextFor (opponentState s)))
 
@@ -815,8 +819,8 @@ canActivateWalker2 : ∀ p s → Dec (CanActivateWalker2 p s)
 canActivateWalker2 p s = decide _
 canActivateElixir : ∀ p s → Dec (CanActivateElixir p s)
 canActivateElixir p s = decide _
--- canDeclareAttackers : ∀ p s → Dec (CanDeclareAttackers p s)
--- canDeclareAttackers p s = decide _
+canDeclareAttackers : ∀ p s → Dec (CanDeclareAttackers p s)
+canDeclareAttackers p s = decide _
 -- canDeclareBlockers : ∀ p s → Dec (CanDeclareBlockers p s)
 -- canDeclareBlockers p s = decide _
 {-# COMPILE AGDA2HS canCastWalker1 #-}
@@ -825,6 +829,7 @@ canActivateElixir p s = decide _
 {-# COMPILE AGDA2HS canActivateWalker1 #-}
 {-# COMPILE AGDA2HS canActivateWalker2 #-}
 {-# COMPILE AGDA2HS canActivateElixir #-}
+{-# COMPILE AGDA2HS canDeclareAttackers #-}
 
 
 mbCastWalker1 : ∀ p s → List (Action s p)
@@ -834,9 +839,9 @@ mbCastWalker1 p s = ifDec (canCastWalker1 p s)
 {-# COMPILE AGDA2HS mbCastWalker1 #-}
 
 -- Either do a ton of pattern-matching or add Dec implementations for all the precondiions
-availableActions : ∀ p s → List (Action s p)
-availableActions p s = ifDec (decEq p (activePlayer s) ×-dec decEq (walker1State (stateOfPlayer s p)) InHand)
-    []
+availableActions : ∀ p s → List (List (Action s p))
+availableActions p s =
+    mbCastWalker1 p s ∷
     []
 {-# COMPILE AGDA2HS availableActions #-}
 
@@ -847,7 +852,22 @@ availableActions p s = ifDec (decEq p (activePlayer s) ×-dec decEq (walker1Stat
 -- availableActions Brigyeetz record { phase = ph ; activePlayer = Ozzie     ; ozzieState = oS ; brigyeetzState = bS ; lastPlayerPassed = lpp } = {!   !}
 -- availableActions Brigyeetz record { phase = ph ; activePlayer = Brigyeetz ; ozzieState = oS ; brigyeetzState = bS ; lastPlayerPassed = lpp } = {!   !}
 
--- actionsComplete : ∀ p s (act : Action s p) → Any (_≡ act) availableActions
+magic0 : {A : Set} → @0 Haskell.Prim.⊥ → A
+magic0 ()
+
+actionsComplete : ∀ p s (act : Action s p) → Any (Any (_≡ act)) (availableActions p s)
+actionsComplete p s (ACastWalker1 isActive inMain hasMana₁ isInHand) = here $ case canCastWalker1 p s of λ where
+    (false ⟨ pf ⟩) → magic0 (pf (isActive , inMain , hasMana₁ , isInHand))
+    (true ⟨ refl , mn , mana , inHand ⟩) → {! snd  !}
+actionsComplete p s acts = {!   !}
+-- actionsComplete .Brigyeetz s (ACastWalker2 isActive inMain hasMana₁ isInHand) = {!   !}
+-- actionsComplete .Ozzie s (ACastElixir isActive inMain hasMana₁ isInHand) = {!   !}
+-- actionsComplete p s (AActivateWalker1 hasMana₁ canActivate) = {!   !}
+-- actionsComplete .Brigyeetz s (AActivateWalker2 hasMana₁ canActivate) = {!   !}
+-- actionsComplete .Ozzie s (AActivateElixir hasMana₁ canActivate) = {!   !}
+-- actionsComplete p s (ADeclareAttackers inCombat isActive atcks) = {!   !}
+-- actionsComplete p s (ADeclareBlockers atcks inCombat2 isOpponent blcks) = {!   !}
+-- actionsComplete p s ADoNothing = {!   !}
 
 {-
 
