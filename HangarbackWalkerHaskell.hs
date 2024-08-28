@@ -438,6 +438,45 @@ canCastWalker1 p s
         isCityUntapped (stateOfPlayer s p) &&
           walker1State (stateOfPlayer s p) == InHand
 
+canCastWalker2 :: Player -> GameState -> Bool
+canCastWalker2 p s
+  = p == Brigyeetz &&
+      activePlayer s == Brigyeetz &&
+        iIsMainDec (phase s) &&
+          isCityUntapped (brigyeetzState s) &&
+            card2State (brigyeetzState s) == InHand
+
+canCastElixir :: Player -> GameState -> Bool
+canCastElixir p s
+  = p == Ozzie &&
+      activePlayer s == Ozzie &&
+        iIsMainDec (phase s) &&
+          (isCityUntapped (ozzieState s) || floatingMana (ozzieState s)) &&
+            card2State (ozzieState s) == InHand
+
+canActivateWalker1 :: Player -> GameState -> Bool
+canActivateWalker1 p s
+  = (isCityUntapped (stateOfPlayer s p) ||
+       floatingMana (stateOfPlayer s p))
+      && isTappableWalker (walker1State (stateOfPlayer s p))
+
+canActivateWalker2 :: Player -> GameState -> Bool
+canActivateWalker2 p s
+  = p == Brigyeetz &&
+      (isCityUntapped (brigyeetzState s) ||
+         floatingMana (brigyeetzState s))
+        && isTappableWalker (card2State (brigyeetzState s))
+
+canActivateElixir :: Player -> GameState -> Bool
+canActivateElixir p s
+  = p == Ozzie &&
+      isCityUntapped (ozzieState s) &&
+        card2State (ozzieState s) == OnBattlefield CElixirState
+
+mbCastWalker1 :: Player -> GameState -> [Action]
+mbCastWalker1 p s
+  = if canCastWalker1 p s then [ACastWalker1 p] else []
+
 availableActions :: Player -> GameState -> [Action]
 availableActions p s
   = if

@@ -22,8 +22,8 @@ open import Haskell.Extra.Dec
 open import Haskell.Extra.Refinement
 -- open import Data.Maybe
 -- open import Relation.Nullary
-open import Relation.Binary.Construct.Closure.ReflexiveTransitive
-open import Relation.Binary.Construct.Closure.ReflexiveTransitive.Properties
+-- open import Relation.Binary.Construct.Closure.ReflexiveTransitive
+-- open import Relation.Binary.Construct.Closure.ReflexiveTransitive.Properties
 
 {-
 This puzzle: https://www.youtube.com/watch?v=hdaiKwKN50U
@@ -471,8 +471,8 @@ castElixir s = record s { card2State = OnBattlefield CElixirState }
 data canActivateWalker : CardPosition Walker → Set where
   valid : ∀ n → canActivateWalker (OnBattlefield (CWalkerState (record { isTapped = false ; summoningSickness = false ; nCounters = n})))
 
-canActivateWalker2 : ∀ {p} → p ≡ Brigyeetz → CardPosition (card2ForPlayer p) → Set
-canActivateWalker2 refl s = canActivateWalker s
+-- canActivateWalker2 : ∀ {p} → p ≡ Brigyeetz → CardPosition (card2ForPlayer p) → Set
+-- canActivateWalker2 refl s = canActivateWalker s
 
 -- activateWalker1 : ∀ {p} → canActivateWalker  →  PlayerState p → PlayerState p
 -- activateWalker1 _ s = record s { floatingMana = false ; walker1State = OnBattlefield walkerInitialState }
@@ -687,8 +687,8 @@ instance
 
 postulate instance iPlayerEq : Eq Player
 postulate instance iPlayerLawfulEq : IsLawfulEq Player
-postulate instance iCardPositionEq : Eq (CardPosition Walker)
-postulate instance iCardPositionLawfulEq : IsLawfulEq (CardPosition Walker)
+postulate instance iCardPositionEq : ∀ {c} → Eq (CardPosition c)
+postulate instance iCardPositionLawfulEq : ∀ {c} → IsLawfulEq (CardPosition c)
 
 -- TODO: Move to new module
 _×-reflects_ : ∀ {A B : Set} {a b} → Reflects A a → Reflects B b →
@@ -728,6 +728,21 @@ instance
     iT = T? _
 {-# COMPILE AGDA2HS iT transparent #-}
 
+isTappableReflects : ∀ {cst} → Reflects (canActivateWalker cst) (isTappableWalker cst)
+isTappableReflects {OnBattlefield (CWalkerState record { isTapped = false ; summoningSickness = false ; nCounters = n })} = valid n
+isTappableReflects {OnBattlefield (CWalkerState record { isTapped = true })} = λ ()
+isTappableReflects {OnBattlefield (CWalkerState record { isTapped = false ; summoningSickness = true })} = λ ()
+isTappableReflects {InHand} = λ  ()
+isTappableReflects {InGraveyard} = λ ()
+isTappableReflects {InDeck} = λ ()
+-- TODO: Use less pattern matching in definitions to simplify this proof
+-- or just define canActivate as T isTappableWalker
+
+
+instance
+    iCanActivateWalkerEq : ∀ {cst} → Dec (canActivateWalker cst)
+    iCanActivateWalkerEq {cst} = (isTappableWalker cst) ⟨ isTappableReflects ⟩
+
 hasMana : ∀ n {@0 p} (ps : PlayerState p) → Dec (HasMana ps n)
 hasMana One ps = T? _
 hasMana Two ps = T? _
@@ -740,11 +755,26 @@ decide A {{d}} = d
 -- List of: can perform action x, containing all the preconditions for it
 CanCastWalker1 : ∀ (p : Player) (s : GameState) → Set
 CanCastWalker1 p s = (p ≡ activePlayer s) × (isMain (phase s)) × (HasMana (stateOfPlayer s p) Two) × (walker1State (stateOfPlayer s p) ≡ InHand)
-canCastWalker1 : ∀ p s → Dec (CanCastWalker1 p s)
-canCastWalker1 p s = decide _
--- canCastWalker1 p s = decide (CanCastWalker1 p s)
--- canCastWalker1 p s = decide _ ×-dec decide _ ×-dec decide _ ×-dec decide _
--- canCastWalker1 p s = (decEq p (activePlayer s)) ×-dec iIsMainDec ×-dec hasMana Two (stateOfPlayer s p) ×-dec (decEq (walker1State (stateOfPlayer s p)) InHand)
+-- canCastWalker1 : ∀ p s → Dec (CanCastWalker1 p s)
+-- canCastWalker1 p s = decide _
+-- -- canCastWalker1 p s = decide (CanCastWalker1 p s)
+-- -- canCastWalker1 p s = decide _ ×-dec decide _ ×-dec decide _ ×-dec decide _
+-- -- canCastWalker1 p s = (decEq p (activePlayer s)) ×-dec iIsMainDec ×-dec hasMana Two (stateOfPlayer s p) ×-dec (decEq (walker1State (stateOfPlayer s p)) InHand)
+-- {-# COMPILE AGDA2HS canCastWalker1 #-}
+
+-- module _ where
+--     open import Reflection
+--     open import MacroStuff
+--     private
+--         qAction : Definition
+--         qAction = get-repr! Action
+--         qACastWalker1 : Definition
+--         qACastWalker1 = get-repr! ACastWalker1
+--         -- qACastWalker1 = {! get-repr! ACastWalker1  !}
+--         -- _ : Type
+--         -- _ = {! print-repr! ACastWalker1  !}
+
+
 
 -- Question: Can these be derived through reflection
 
@@ -756,7 +786,52 @@ canCastWalker1 p s = decide _
     -- AActivateElixir : ∀ (@0 hasMana : HasMana (ozzieState s) Two) (@0 canActivate : card2State (ozzieState s) ≡ OnBattlefield CElixirState) → Action s Ozzie
     -- ADeclareAttackers : ∀ {p} (@0 inCombat : phase s ≡ Combat CombatStart) (@0 isActive : p ≡ activePlayer s) (atcks : AttackerInfo (attackContextFor (activePlayerState s))) → Action s p
     -- ADeclareBlockers : ∀ {p} {@0 pps : AttackContext} (atcks : AttackerInfo pps) (@0 inCombat2 : phase s ≡ Combat (DeclaredAttackers pps atcks)) (@0 isOpponent : opponentOf p ≡ activePlayer s) (blcks : BlockerInfo pps atcks (blockerContextFor (opponentState s))) → Action s p
+
+
+CanCastWalker2 : Player → GameState → Set
+CanCastWalker2 p s = (p ≡ Brigyeetz) × (activePlayer s ≡ Brigyeetz) × (isMain (phase s)) × (HasMana (brigyeetzState s) Two) × (card2State (brigyeetzState s) ≡ InHand)
+CanCastElixir : Player → GameState → Set
+CanCastElixir p s = (p ≡ Ozzie) × (activePlayer s ≡ Ozzie) × (isMain (phase s)) × (HasMana (ozzieState s) One) × (card2State (ozzieState s) ≡ InHand)
+CanActivateWalker1 : Player → GameState → Set
+CanActivateWalker1 p s = (HasMana (stateOfPlayer s p) One) × (canActivateWalker (walker1State (stateOfPlayer s p)))
+CanActivateWalker2 : Player → GameState → Set
+CanActivateWalker2 p s = (p ≡ Brigyeetz) × (HasMana (brigyeetzState s) One) × (canActivateWalker (card2State (brigyeetzState s)))
+CanActivateElixir : Player → GameState → Set
+CanActivateElixir p s = (p ≡ Ozzie) × (HasMana (ozzieState s) Two) × (card2State (ozzieState s) ≡ OnBattlefield CElixirState)
+-- CanDeclareAttackers : Player → GameState → Set
+-- CanDeclareAttackers p s = (phase s ≡ Combat CombatStart) × (p ≡ activePlayer s) (atcks : AttackerInfo (attackContextFor (activePlayerState s)))
+-- CanDeclareBlockers : Player → GameState → Set
+-- CanDeclareBlockers p s = {p} {@0 pps : AttackContext} (atcks : AttackerInfo pps) (@0 inCombat2 : phase s ≡ Combat (DeclaredAttackers pps atcks)) (@0 isOpponent : opponentOf p ≡ activePlayer s) (blcks : BlockerInfo pps atcks (blockerContextFor (opponentState s)))
+
+canCastWalker1 : ∀ p s → Dec (CanCastWalker1 p s)
+canCastWalker1 p s = decide _
+canCastWalker2 : ∀ p s → Dec (CanCastWalker2 p s)
+canCastWalker2 p s = decide _
+canCastElixir : ∀ p s → Dec (CanCastElixir p s)
+canCastElixir p s = decide _
+canActivateWalker1 : ∀ p s → Dec (CanActivateWalker1 p s)
+canActivateWalker1 p s = decide _
+canActivateWalker2 : ∀ p s → Dec (CanActivateWalker2 p s)
+canActivateWalker2 p s = decide _
+canActivateElixir : ∀ p s → Dec (CanActivateElixir p s)
+canActivateElixir p s = decide _
+-- canDeclareAttackers : ∀ p s → Dec (CanDeclareAttackers p s)
+-- canDeclareAttackers p s = decide _
+-- canDeclareBlockers : ∀ p s → Dec (CanDeclareBlockers p s)
+-- canDeclareBlockers p s = decide _
 {-# COMPILE AGDA2HS canCastWalker1 #-}
+{-# COMPILE AGDA2HS canCastWalker2 #-}
+{-# COMPILE AGDA2HS canCastElixir #-}
+{-# COMPILE AGDA2HS canActivateWalker1 #-}
+{-# COMPILE AGDA2HS canActivateWalker2 #-}
+{-# COMPILE AGDA2HS canActivateElixir #-}
+
+
+mbCastWalker1 : ∀ p s → List (Action s p)
+mbCastWalker1 p s = ifDec (canCastWalker1 p s)
+    (λ where ⦃ isActive , inMain , hasMana , isInHand ⦄ → ACastWalker1 isActive inMain hasMana isInHand ∷ [])
+    []
+{-# COMPILE AGDA2HS mbCastWalker1 #-}
 
 -- Either do a ton of pattern-matching or add Dec implementations for all the precondiions
 availableActions : ∀ p s → List (Action s p)
