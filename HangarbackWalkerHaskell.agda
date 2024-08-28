@@ -688,6 +688,11 @@ instance
 {-# COMPILE AGDA2HS iIsMainDec #-}
 
 postulate instance iPlayerEq : Eq Player
+-- instance
+--     iPlayerEq : Eq Player
+--     iPlayerEq .Eq._==_ Ozzie Ozzie = true
+--     iPlayerEq .Eq._==_ Brigyeetz Brigyeetz = true
+--     iPlayerEq .Eq._==_ _ _ = false
 postulate instance iPlayerLawfulEq : IsLawfulEq Player
 postulate instance iCardPositionEq : ∀ {c} → Eq (CardPosition c)
 postulate instance iCardPositionLawfulEq : ∀ {c} → IsLawfulEq (CardPosition c)
@@ -831,11 +836,53 @@ canDeclareAttackers p s = decide _
 {-# COMPILE AGDA2HS canActivateElixir #-}
 {-# COMPILE AGDA2HS canDeclareAttackers #-}
 
+magic0 : {A : Set} → @0 Haskell.Prim.⊥ → A
+magic0 ()
 
+cong0 : ∀ {A B : Set} (f : @0 A → B) {@0 x} {@0 y} → @0 x ≡ y → f x ≡ f y
+cong0 f refl = refl
+
+record Prop0 (A : Set) : Set where
+    field
+        useProp : ∀ (u v : A) → u ≡ v
+-- Prop0 : (A : Set) → Set
+-- Prop0 A = ∀ {u v : A} → u ≡ v
+open Prop0
+
+×-equality : ∀ {A B : Set} {a1 a2 : A} {b1 b2 : B} → a1 ≡ a2 → b1 ≡ b2 → (a1 , b1) ≡ (a2 , b2)
+×-equality refl refl = refl
+
+instance
+    i×-Prop0 : ∀ {A B : Set} → {{Prop0 A}} → {{Prop0 B}} → Prop0 (A × B)
+    i×-Prop0 {{pA}} {{pB}} .useProp (a1 , b1) (a2 , b2) = ×-equality (pA .useProp a1 a2) (pB .useProp b1 b2)
+    -- i×-Prop0 {{pA}} {{pB}} {a1 , b1} {a2 , b2} = ×-equality (pA {a1} {a2}) (pB {b1} {b2})
+
+    eq-Prop0 : ∀ {A : Set} {a b : A} → Prop0 (a ≡ b)
+    eq-Prop0 .useProp refl refl = refl
+
+    iIsMain-Prop0 : ∀ {ph} → Prop0 (isMain ph)
+    iIsMain-Prop0 .useProp main1 main1 = refl
+    iIsMain-Prop0 .useProp main2 main2 = refl
+
+    iT-Prop0 : ∀ {b : Bool} → Prop0 (T b)
+    iT-Prop0 {false} .useProp () ()
+    iT-Prop0 {true} .useProp u v = refl
+    -- iHasMana-Prop0 : ∀ {p} {ps : PlayerState p} → Prop0 (HasMana ps Two)
+    -- iHasMana-Prop0 {ps = ps} .useProp u v = {!   !}
+
+
+mbList : ∀ {A B : Set} → Dec A → (@0 A → B) → List B
+mbList dec f = ifDec dec (λ {{a}} → f a ∷ []) []
+
+mbListAny : ∀ {A B : Set} (d : Dec A) (f : @0 A → B) (@0 x) {{@0 aProp : Prop0 A}} → Any (_≡ f x) (mbList d f)
+mbListAny (false ⟨ ¬A ⟩) f x = magic0 (¬A x)
+mbListAny (true ⟨ yesA ⟩) f x {{aProp}} = here (cong0 f (aProp .useProp _ _))
+-- mbListAny (true ⟨ yesA ⟩) f x prp = here (cong0 f (prp yesA x))
+
+mkCastWalker1 : ∀ {p} {s} → @0 CanCastWalker1 p s → Action s p
+mkCastWalker1 (isActive , inMain , hasMana , isInHand) = ACastWalker1 isActive inMain hasMana isInHand
 mbCastWalker1 : ∀ p s → List (Action s p)
-mbCastWalker1 p s = ifDec (canCastWalker1 p s)
-    (λ where ⦃ isActive , inMain , hasMana , isInHand ⦄ → ACastWalker1 isActive inMain hasMana isInHand ∷ [])
-    []
+mbCastWalker1 p s = mbList (canCastWalker1 p s) mkCastWalker1
 {-# COMPILE AGDA2HS mbCastWalker1 #-}
 
 -- Either do a ton of pattern-matching or add Dec implementations for all the precondiions
@@ -852,13 +899,14 @@ availableActions p s =
 -- availableActions Brigyeetz record { phase = ph ; activePlayer = Ozzie     ; ozzieState = oS ; brigyeetzState = bS ; lastPlayerPassed = lpp } = {!   !}
 -- availableActions Brigyeetz record { phase = ph ; activePlayer = Brigyeetz ; ozzieState = oS ; brigyeetzState = bS ; lastPlayerPassed = lpp } = {!   !}
 
-magic0 : {A : Set} → @0 Haskell.Prim.⊥ → A
-magic0 ()
-
 actionsComplete : ∀ p s (act : Action s p) → Any (Any (_≡ act)) (availableActions p s)
-actionsComplete p s (ACastWalker1 isActive inMain hasMana₁ isInHand) = here $ case canCastWalker1 p s of λ where
-    (false ⟨ pf ⟩) → magic0 (pf (isActive , inMain , hasMana₁ , isInHand))
-    (true ⟨ refl , mn , mana , inHand ⟩) → {! snd  !}
+actionsComplete p s (ACastWalker1 isActive inMain hasMana₁ isInHand) =
+    here (mbListAny (canCastWalker1 p s) mkCastWalker1 (isActive , inMain , hasMana₁ , isInHand))
+--     with canCastWalker1 p s
+-- ... | value₁ ⟨ proof₁ ⟩ = {!   !}
+-- actionsComplete p s (ACastWalker1 isActive inMain hasMana₁ isInHand) = here $ case canCastWalker1 p s of λ where
+--     (false ⟨ pf ⟩) → magic0 (pf (isActive , inMain , hasMana₁ , isInHand))
+--     (true ⟨ canCst ⟩) {{ccEq}} → {! subst (λ z → Any _ (ifDec z _ _)) (sym ccEq)  !}
 actionsComplete p s acts = {!   !}
 -- actionsComplete .Brigyeetz s (ACastWalker2 isActive inMain hasMana₁ isInHand) = {!   !}
 -- actionsComplete .Ozzie s (ACastElixir isActive inMain hasMana₁ isInHand) = {!   !}
