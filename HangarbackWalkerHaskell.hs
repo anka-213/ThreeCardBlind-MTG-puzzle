@@ -422,3 +422,25 @@ performAction s act
                                             (Combat (DeclaredBlockers atcks blcks))
         ADoNothing p -> doNothing s
 
+iIsMainDec :: Phase -> Bool
+iIsMainDec PreCombatMain = True
+iIsMainDec PostCombatMain = True
+iIsMainDec (Combat _) = False
+
+hasMana :: ManaCost -> PlayerState -> Bool
+hasMana One ps = isCityUntapped ps || floatingMana ps
+hasMana Two ps = isCityUntapped ps
+
+canCastWalker1 :: Player -> GameState -> Bool
+canCastWalker1 p s
+  = p == activePlayer s &&
+      iIsMainDec (phase s) &&
+        isCityUntapped (stateOfPlayer s p) &&
+          walker1State (stateOfPlayer s p) == InHand
+
+availableActions :: Player -> GameState -> [Action]
+availableActions p s
+  = if
+      p == activePlayer s && walker1State (stateOfPlayer s p) == InHand
+      then [] else []
+

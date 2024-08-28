@@ -8,15 +8,20 @@ open import Data.Nat.Properties
 open import Data.Fin using (Fin ; #_)
 open import Data.Unit.Base
 open import Data.Empty
-open import Data.Bool hiding (_≤_ ; if_then_else_)
+open import Data.Bool hiding (_≤_ ; if_then_else_ ; _∧_ ; _∨_ ; T?)
 open import Data.Product
 open import Data.Sum.Base
 open import Data.List hiding (drop)
 -- open import Haskell.Prelude using (List ; drop ; [])
 -- open import Haskell.Prelude using (Int)
 open import Haskell.Prelude using (if_then_else_ ; case_of_ ; Maybe ; Just ; Nothing ; maybe)
+open import Haskell.Prelude using (Eq ; _==_ ; _&&_ ; _||_ )
+open import Haskell.Law.Eq
+-- using (IsLawfulEq ; isEquality )
+open import Haskell.Extra.Dec
+open import Haskell.Extra.Refinement
 -- open import Data.Maybe
-open import Relation.Nullary
+-- open import Relation.Nullary
 open import Relation.Binary.Construct.Closure.ReflexiveTransitive
 open import Relation.Binary.Construct.Closure.ReflexiveTransitive.Properties
 
@@ -427,7 +432,7 @@ data ManaCost : Set where
 -- We do not allow more than one mana source, since only one exists in this matchup
 module _ {@0 p} (s : PlayerState p) where
     HasMana : ManaCost → Set
-    HasMana One = T (isCityUntapped s ∨ floatingMana s)
+    HasMana One = T (isCityUntapped s || floatingMana s)
     HasMana Two = T (isCityUntapped s)
 
     consumeMana : ∀ n → @0 HasMana n → PlayerState p
@@ -673,6 +678,101 @@ performAction s p act = case act of λ where
     (ADoNothing) → doNothing s
 {-# COMPILE AGDA2HS performAction #-}
 
+instance
+    iIsMainDec : ∀ {ph} → Dec (isMain ph)
+    iIsMainDec {PreCombatMain} = true ⟨ main1 ⟩
+    iIsMainDec {PostCombatMain} = true ⟨ main2 ⟩
+    iIsMainDec {Combat _} = false ⟨ (λ ()) ⟩
+{-# COMPILE AGDA2HS iIsMainDec #-}
+
+postulate instance iPlayerEq : Eq Player
+postulate instance iPlayerLawfulEq : IsLawfulEq Player
+postulate instance iCardPositionEq : Eq (CardPosition Walker)
+postulate instance iCardPositionLawfulEq : IsLawfulEq (CardPosition Walker)
+
+-- TODO: Move to new module
+_×-reflects_ : ∀ {A B : Set} {a b} → Reflects A a → Reflects B b →
+               Reflects (A × B) (a && b)
+_×-reflects_ {a = true} {true} ra rb = ra , rb
+_×-reflects_ {a = true} {false} ra rb = rb ∘ proj₂
+_×-reflects_ {a = false} ra rb = ra ∘ proj₁
+
+infixr 2 _×-dec_
+_×-dec_ : ∀ {A B : Set} → Dec A → Dec B → Dec (A × B)
+(a? ⟨ a-pf ⟩) ×-dec (b? ⟨ b-pf ⟩) = (a? && b?) ⟨ _×-reflects_ {a = a?} {b?} a-pf b-pf ⟩
+{-# COMPILE AGDA2HS _×-dec_ inline #-}
+
+instance
+    i×Dec : ∀ {A B : Set} → {{Dec A}} → {{Dec B}} → Dec (A × B)
+    i×Dec {A} {B} {{da}} {{db}} = da ×-dec db
+
+decEq : ∀ {a : Set} {{iEq : Eq a}} {{iLEq : IsLawfulEq a }} (x y : a) → Dec (x ≡ y)
+decEq x y = (x == y) ⟨ isEquality x y ⟩
+-- {-# COMPILE AGDA2HS mapDec transparent #-}
+{-# COMPILE AGDA2HS decEq inline #-}
+
+instance
+    iDecEq : ∀ {a : Set} {{iEq : Eq a}} {{iLEq : IsLawfulEq a }} {x y : a} → Dec (x ≡ y)
+    iDecEq = decEq _ _
+
+T-reflects : ∀ b → Reflects (T b) b
+T-reflects false = λ ()
+T-reflects true = tt
+
+T? : ∀ x → Dec (T x)
+T? x = x ⟨ T-reflects x ⟩
+{-# COMPILE AGDA2HS T? transparent #-}
+
+instance
+    iT : ∀ {x} → Dec (T x)
+    iT = T? _
+{-# COMPILE AGDA2HS iT transparent #-}
+
+hasMana : ∀ n {@0 p} (ps : PlayerState p) → Dec (HasMana ps n)
+hasMana One ps = T? _
+hasMana Two ps = T? _
+{-# COMPILE AGDA2HS hasMana #-}
+
+decide : ∀ (A : Set) → {{Dec A}} → Dec A
+decide A {{d}} = d
+{-# COMPILE AGDA2HS decide transparent #-}
+
+-- List of: can perform action x, containing all the preconditions for it
+CanCastWalker1 : ∀ (p : Player) (s : GameState) → Set
+CanCastWalker1 p s = (p ≡ activePlayer s) × (isMain (phase s)) × (HasMana (stateOfPlayer s p) Two) × (walker1State (stateOfPlayer s p) ≡ InHand)
+canCastWalker1 : ∀ p s → Dec (CanCastWalker1 p s)
+canCastWalker1 p s = decide _
+-- canCastWalker1 p s = decide (CanCastWalker1 p s)
+-- canCastWalker1 p s = decide _ ×-dec decide _ ×-dec decide _ ×-dec decide _
+-- canCastWalker1 p s = (decEq p (activePlayer s)) ×-dec iIsMainDec ×-dec hasMana Two (stateOfPlayer s p) ×-dec (decEq (walker1State (stateOfPlayer s p)) InHand)
+
+-- Question: Can these be derived through reflection
+
+    -- ACastWalker1 : ∀ {p} (@0 isActive : p ≡ activePlayer s) (@0 inMain : isMain (phase s)) (@0 hasMana : HasMana (stateOfPlayer s p) Two) (@0 isInHand : walker1State (stateOfPlayer s p) ≡ InHand) → Action s p
+    -- ACastWalker2 : ∀ (@0 isActive : activePlayer s ≡ Brigyeetz) (@0 inMain : isMain (phase s)) (@0 hasMana : HasMana (brigyeetzState s) Two) (@0 isInHand : card2State (brigyeetzState s) ≡ InHand) → Action s Brigyeetz
+    -- ACastElixir : ∀ (@0 isActive : activePlayer s ≡ Ozzie) (@0 inMain : isMain (phase s)) (@0 hasMana : HasMana (ozzieState s) One) (@0 isInHand : card2State (ozzieState s) ≡ InHand) → Action s Ozzie
+    -- AActivateWalker1 : ∀ {p} (@0 hasMana : HasMana (stateOfPlayer s p) One) (@0 canActivate : canActivateWalker (walker1State (stateOfPlayer s p))) → Action s p
+    -- AActivateWalker2 : ∀ (@0 hasMana : HasMana (brigyeetzState s) One) (@0 canActivate : canActivateWalker (card2State (brigyeetzState s))) → Action s Brigyeetz
+    -- AActivateElixir : ∀ (@0 hasMana : HasMana (ozzieState s) Two) (@0 canActivate : card2State (ozzieState s) ≡ OnBattlefield CElixirState) → Action s Ozzie
+    -- ADeclareAttackers : ∀ {p} (@0 inCombat : phase s ≡ Combat CombatStart) (@0 isActive : p ≡ activePlayer s) (atcks : AttackerInfo (attackContextFor (activePlayerState s))) → Action s p
+    -- ADeclareBlockers : ∀ {p} {@0 pps : AttackContext} (atcks : AttackerInfo pps) (@0 inCombat2 : phase s ≡ Combat (DeclaredAttackers pps atcks)) (@0 isOpponent : opponentOf p ≡ activePlayer s) (blcks : BlockerInfo pps atcks (blockerContextFor (opponentState s))) → Action s p
+{-# COMPILE AGDA2HS canCastWalker1 #-}
+
+-- Either do a ton of pattern-matching or add Dec implementations for all the precondiions
+availableActions : ∀ p s → List (Action s p)
+availableActions p s = ifDec (decEq p (activePlayer s) ×-dec decEq (walker1State (stateOfPlayer s p)) InHand)
+    []
+    []
+{-# COMPILE AGDA2HS availableActions #-}
+
+-- availableActions p s = case p == activePlayer s of λ where
+--   z → {!   !}
+-- availableActions Ozzie     record { phase = ph ; activePlayer = Ozzie     ; ozzieState = oS ; brigyeetzState = bS ; lastPlayerPassed = lpp } = {!   !}
+-- availableActions Ozzie     record { phase = ph ; activePlayer = Brigyeetz ; ozzieState = oS ; brigyeetzState = bS ; lastPlayerPassed = lpp } = {!   !}
+-- availableActions Brigyeetz record { phase = ph ; activePlayer = Ozzie     ; ozzieState = oS ; brigyeetzState = bS ; lastPlayerPassed = lpp } = {!   !}
+-- availableActions Brigyeetz record { phase = ph ; activePlayer = Brigyeetz ; ozzieState = oS ; brigyeetzState = bS ; lastPlayerPassed = lpp } = {!   !}
+
+-- actionsComplete : ∀ p s (act : Action s p) → Any (_≡ act) availableActions
 
 {-
 
