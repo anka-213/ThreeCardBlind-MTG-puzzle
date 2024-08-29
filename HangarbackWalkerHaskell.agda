@@ -870,6 +870,9 @@ instance
     -- iHasMana-Prop0 : ∀ {p} {ps : PlayerState p} → Prop0 (HasMana ps Two)
     -- iHasMana-Prop0 {ps = ps} .useProp u v = {!   !}
 
+    iCanActivateProp : ∀ {cs} → Prop0 (canActivateWalker cs)
+    iCanActivateProp .useProp (valid n) (valid .n) = refl
+
 
 mbList : ∀ {A b : Set} → Dec A → (@0 A → b) → List b
 mbList dec f = ifDec dec (λ {{a}} → f a ∷ []) []
@@ -892,16 +895,28 @@ mkCastElixir : ∀ {p} {@0 s} → @0 CanCastElixir p s → Action s p
 mkCastElixir = λ where (refl , isActive , inMain , hasMana , isInHand) → ACastElixir isActive inMain hasMana isInHand
 {-# COMPILE AGDA2HS mkCastElixir inline #-}
 
-mbCastWalker1 : ∀ p s → List (Action s p)
-mbCastWalker1 p s = mbList (canCastWalker1 p s) mkCastWalker1
-{-# COMPILE AGDA2HS mbCastWalker1 inline #-}
+mkActivateWalker1 : ∀ {p} {@0 s} → @0 CanActivateWalker1 p s → Action s p
+mkActivateWalker1 = λ where (hasMana , canActivate) → AActivateWalker1 hasMana canActivate
+{-# COMPILE AGDA2HS mkActivateWalker1 inline #-}
+
+mkActivateWalker2 : ∀ {p} {@0 s} → @0 CanActivateWalker2 p s → Action s p
+mkActivateWalker2 = λ where (refl , hasMana , canActivate) → AActivateWalker2 hasMana canActivate
+{-# COMPILE AGDA2HS mkActivateWalker2 inline #-}
+
+mkActivateElixir : ∀ {p} {@0 s} → @0 CanActivateElixir p s → Action s p
+mkActivateElixir = λ where (refl , hasMana , canActivate) → AActivateElixir hasMana canActivate
+{-# COMPILE AGDA2HS mkActivateElixir inline #-}
 
 -- Either do a ton of pattern-matching or add Dec implementations for all the precondiions
 availableActions : ∀ p s → List (List (Action s p))
 availableActions p s =
-    mbCastWalker1 p s ∷
+    mbList (canCastWalker1 p s) mkCastWalker1 ∷
     mbList (canCastWalker2 p s) mkCastWalker2 ∷
     mbList (canCastElixir p s) mkCastElixir ∷
+    mbList (canActivateWalker1 p s) mkActivateWalker1 ∷
+    mbList (canActivateWalker2 p s) mkActivateWalker2 ∷
+    mbList (canActivateElixir p s) mkActivateElixir ∷
+    (ADoNothing ∷ []) ∷
     []
 {-# COMPILE AGDA2HS availableActions #-}
 
@@ -920,12 +935,15 @@ actionsComplete p s (ACastWalker2 isActive inMain hasMana isInHand) = there $
     here (mbListAny  (canCastWalker2 p s) mkCastWalker2 (refl , isActive , inMain , hasMana , isInHand))
 actionsComplete p s (ACastElixir isActive inMain hasMana isInHand) = there $ there $
     here (mbListAny  (canCastElixir p s) mkCastElixir (refl , isActive , inMain , hasMana , isInHand))
--- actionsComplete p s (AActivateWalker1 hasMana canActivate) = {!   !}
--- actionsComplete .Brigyeetz s (AActivateWalker2 hasMana canActivate) = {!   !}
--- actionsComplete .Ozzie s (AActivateElixir hasMana canActivate) = {!   !}
+actionsComplete p s (AActivateWalker1 hasMana canActivate) = there $ there $ there $
+    here (mbListAny (canActivateWalker1 p s) mkActivateWalker1 (hasMana , canActivate))
+actionsComplete p s (AActivateWalker2 hasMana canActivate) = there $ there $ there $ there $
+    here (mbListAny (canActivateWalker2 p s) mkActivateWalker2 (refl , hasMana , canActivate))
+actionsComplete p s (AActivateElixir hasMana canActivate) = there $ there $ there $ there $ there $
+    here (mbListAny (canActivateElixir p s) mkActivateElixir (refl , hasMana , canActivate))
 -- actionsComplete p s (ADeclareAttackers inCombat isActive atcks) = {!   !}
 -- actionsComplete p s (ADeclareBlockers atcks inCombat2 isOpponent blcks) = {!   !}
--- actionsComplete p s ADoNothing = {!   !}
+actionsComplete p s ADoNothing = there $ there $ there $ there $ there $ there $ here (here refl)
 actionsComplete p s acts = {!   !}
 
 {-

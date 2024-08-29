@@ -480,5 +480,8 @@ availableActions :: Player -> GameState -> [[Action]]
 availableActions p s
   = [mbList (canCastWalker1 p s) (ACastWalker1 p),
      mbList (canCastWalker2 p s) ACastWalker2,
-     mbList (canCastElixir p s) ACastElixir]
+     mbList (canCastElixir p s) ACastElixir,
+     mbList (canActivateWalker1 p s) (AActivateWalker1 p),
+     mbList (canActivateWalker2 p s) AActivateWalker2,
+     mbList (canActivateElixir p s) AActivateElixir, [ADoNothing p]]
 
