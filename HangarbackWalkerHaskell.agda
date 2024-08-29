@@ -752,10 +752,10 @@ instance
     iCanActivateWalkerEq : ∀ {cst} → Dec (canActivateWalker cst)
     iCanActivateWalkerEq {cst} = (isTappableWalker cst) ⟨ isTappableReflects ⟩
 
-hasMana : ∀ n {@0 p} (ps : PlayerState p) → Dec (HasMana ps n)
-hasMana One ps = T? _
-hasMana Two ps = T? _
-{-# COMPILE AGDA2HS hasMana #-}
+-- hasMana : ∀ n {@0 p} (ps : PlayerState p) → Dec (HasMana ps n)
+-- hasMana One ps = T? _
+-- hasMana Two ps = T? _
+-- {-# COMPILE AGDA2HS hasMana #-}
 
 decide : ∀ (A : Set) → {{Dec A}} → Dec A
 decide A {{d}} = d
@@ -871,24 +871,37 @@ instance
     -- iHasMana-Prop0 {ps = ps} .useProp u v = {!   !}
 
 
-mbList : ∀ {A B : Set} → Dec A → (@0 A → B) → List B
+mbList : ∀ {A b : Set} → Dec A → (@0 A → b) → List b
 mbList dec f = ifDec dec (λ {{a}} → f a ∷ []) []
+{-# COMPILE AGDA2HS mbList #-}
 
 mbListAny : ∀ {A B : Set} (d : Dec A) (f : @0 A → B) (@0 x) {{@0 aProp : Prop0 A}} → Any (_≡ f x) (mbList d f)
 mbListAny (false ⟨ ¬A ⟩) f x = magic0 (¬A x)
 mbListAny (true ⟨ yesA ⟩) f x {{aProp}} = here (cong0 f (aProp .useProp _ _))
 -- mbListAny (true ⟨ yesA ⟩) f x prp = here (cong0 f (prp yesA x))
 
-mkCastWalker1 : ∀ {p} {s} → @0 CanCastWalker1 p s → Action s p
-mkCastWalker1 (isActive , inMain , hasMana , isInHand) = ACastWalker1 isActive inMain hasMana isInHand
+mkCastWalker1 : ∀ {p} {@0 s} → @0 CanCastWalker1 p s → Action s p
+mkCastWalker1 = λ where (isActive , inMain , hasMana , isInHand) → ACastWalker1 isActive inMain hasMana isInHand
+{-# COMPILE AGDA2HS mkCastWalker1 inline #-}
+
+mkCastWalker2 : ∀ {p} {@0 s} → @0 CanCastWalker2 p s → Action s p
+mkCastWalker2 = λ where (refl , isActive , inMain , hasMana , isInHand) → ACastWalker2 isActive inMain hasMana isInHand
+{-# COMPILE AGDA2HS mkCastWalker2 inline #-}
+
+mkCastElixir : ∀ {p} {@0 s} → @0 CanCastElixir p s → Action s p
+mkCastElixir = λ where (refl , isActive , inMain , hasMana , isInHand) → ACastElixir isActive inMain hasMana isInHand
+{-# COMPILE AGDA2HS mkCastElixir inline #-}
+
 mbCastWalker1 : ∀ p s → List (Action s p)
 mbCastWalker1 p s = mbList (canCastWalker1 p s) mkCastWalker1
-{-# COMPILE AGDA2HS mbCastWalker1 #-}
+{-# COMPILE AGDA2HS mbCastWalker1 inline #-}
 
 -- Either do a ton of pattern-matching or add Dec implementations for all the precondiions
 availableActions : ∀ p s → List (List (Action s p))
 availableActions p s =
     mbCastWalker1 p s ∷
+    mbList (canCastWalker2 p s) mkCastWalker2 ∷
+    mbList (canCastElixir p s) mkCastElixir ∷
     []
 {-# COMPILE AGDA2HS availableActions #-}
 
@@ -899,23 +912,21 @@ availableActions p s =
 -- availableActions Brigyeetz record { phase = ph ; activePlayer = Ozzie     ; ozzieState = oS ; brigyeetzState = bS ; lastPlayerPassed = lpp } = {!   !}
 -- availableActions Brigyeetz record { phase = ph ; activePlayer = Brigyeetz ; ozzieState = oS ; brigyeetzState = bS ; lastPlayerPassed = lpp } = {!   !}
 
+-- {-
 actionsComplete : ∀ p s (act : Action s p) → Any (Any (_≡ act)) (availableActions p s)
-actionsComplete p s (ACastWalker1 isActive inMain hasMana₁ isInHand) =
-    here (mbListAny (canCastWalker1 p s) mkCastWalker1 (isActive , inMain , hasMana₁ , isInHand))
---     with canCastWalker1 p s
--- ... | value₁ ⟨ proof₁ ⟩ = {!   !}
--- actionsComplete p s (ACastWalker1 isActive inMain hasMana₁ isInHand) = here $ case canCastWalker1 p s of λ where
---     (false ⟨ pf ⟩) → magic0 (pf (isActive , inMain , hasMana₁ , isInHand))
---     (true ⟨ canCst ⟩) {{ccEq}} → {! subst (λ z → Any _ (ifDec z _ _)) (sym ccEq)  !}
-actionsComplete p s acts = {!   !}
--- actionsComplete .Brigyeetz s (ACastWalker2 isActive inMain hasMana₁ isInHand) = {!   !}
--- actionsComplete .Ozzie s (ACastElixir isActive inMain hasMana₁ isInHand) = {!   !}
--- actionsComplete p s (AActivateWalker1 hasMana₁ canActivate) = {!   !}
--- actionsComplete .Brigyeetz s (AActivateWalker2 hasMana₁ canActivate) = {!   !}
--- actionsComplete .Ozzie s (AActivateElixir hasMana₁ canActivate) = {!   !}
+actionsComplete p s (ACastWalker1 isActive inMain hasMana isInHand) =
+    here (mbListAny (canCastWalker1 p s) mkCastWalker1 (isActive , inMain , hasMana , isInHand))
+actionsComplete p s (ACastWalker2 isActive inMain hasMana isInHand) = there $
+    here (mbListAny  (canCastWalker2 p s) mkCastWalker2 (refl , isActive , inMain , hasMana , isInHand))
+actionsComplete p s (ACastElixir isActive inMain hasMana isInHand) = there $ there $
+    here (mbListAny  (canCastElixir p s) mkCastElixir (refl , isActive , inMain , hasMana , isInHand))
+-- actionsComplete p s (AActivateWalker1 hasMana canActivate) = {!   !}
+-- actionsComplete .Brigyeetz s (AActivateWalker2 hasMana canActivate) = {!   !}
+-- actionsComplete .Ozzie s (AActivateElixir hasMana canActivate) = {!   !}
 -- actionsComplete p s (ADeclareAttackers inCombat isActive atcks) = {!   !}
 -- actionsComplete p s (ADeclareBlockers atcks inCombat2 isOpponent blcks) = {!   !}
 -- actionsComplete p s ADoNothing = {!   !}
+actionsComplete p s acts = {!   !}
 
 {-
 
@@ -1108,4 +1119,5 @@ big₋Walker₋game₋wins s@record
 
 -- -}
 
+-- -}
 -- -}

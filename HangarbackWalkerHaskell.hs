@@ -427,10 +427,6 @@ iIsMainDec PreCombatMain = True
 iIsMainDec PostCombatMain = True
 iIsMainDec (Combat _) = False
 
-hasMana :: ManaCost -> PlayerState -> Bool
-hasMana One ps = isCityUntapped ps || floatingMana ps
-hasMana Two ps = isCityUntapped ps
-
 canCastWalker1 :: Player -> GameState -> Bool
 canCastWalker1 p s
   = p == activePlayer s &&
@@ -477,10 +473,12 @@ canDeclareAttackers :: Player -> GameState -> Bool
 canDeclareAttackers p s
   = phase s == Combat CombatStart && p == activePlayer s
 
-mbCastWalker1 :: Player -> GameState -> [Action]
-mbCastWalker1 p s
-  = if canCastWalker1 p s then [ACastWalker1 p] else []
+mbList :: Bool -> b -> [b]
+mbList dec f = if dec then [f] else []
 
 availableActions :: Player -> GameState -> [[Action]]
-availableActions p s = [mbCastWalker1 p s]
+availableActions p s
+  = [mbList (canCastWalker1 p s) (ACastWalker1 p),
+     mbList (canCastWalker2 p s) ACastWalker2,
+     mbList (canCastElixir p s) ACastElixir]
 
