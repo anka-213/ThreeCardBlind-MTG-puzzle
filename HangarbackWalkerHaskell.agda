@@ -228,7 +228,6 @@ module _ (@0 ac : AttackContext) where
 
     -- TODO: Limit based on attackers
     data BlockTarget (@0 a : AttackerInfo) : Set where
-        BlockThopter : @0 NonZero (thoptersAttack a) → BlockTarget a
         BlockWalker1 : @0 T (walker1Attack a) → BlockTarget a
         BlockWalker2 : @0 T (walker2Attack a) → BlockTarget a
         -- noBlock : BlockTarget
@@ -607,15 +606,8 @@ module _ {@0 p} {@0 pps : AttackContext} {@0 bc : BlockerContext} where
     damageFromWalker2 wSt record { walker2Attack = true } _ = walkerSize wSt
     {-# COMPILE AGDA2HS damageFromWalker2 #-}
 
-    blocksThopter : {@0 a : AttackerInfo pps} → Maybe (BlockTarget pps a) → Bool
-    blocksThopter (Just (BlockThopter _)) = true
-    blocksThopter _ = false
-    {-# COMPILE AGDA2HS blocksThopter #-}
-
     damageFromThopters : (a : AttackerInfo pps) → BlockerInfo pps a bc → ℕ
     damageFromThopters a b = thoptersAttack a ∸ (thopter₋thopter₋blocks b)
-        ∸ bool2nat (blocksThopter (walker1Block b))
-        ∸ bool2nat (blocksThopter (walker2Block b))
     {-# COMPILE AGDA2HS damageFromThopters #-}
 
     calculateDamage : ∀ (a : AttackerInfo pps) (b : BlockerInfo pps a bc) → PlayerState p → ℕ

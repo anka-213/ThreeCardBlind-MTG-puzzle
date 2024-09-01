@@ -171,7 +171,6 @@ module _ (ac : AttackContext) where
 
     -- TODO: Limit based on attackers
     data BlockTarget (a : AttackerInfo) : Set where
-        blockThopter : NonZero (nThopters a) → BlockTarget a
         blockWalker1 : Is-just (walker1Attack a) → BlockTarget a
         blockWalker2 : Is-just (walker2Attack a) → BlockTarget a
         -- noBlock : BlockTarget
@@ -531,8 +530,10 @@ module _ {p} {pps : AttackContext} {bc : BlockerContext} where
     damageFromWalker2 wSt record { walker2Attack = just _ } record { walker1Block = just (blockWalker2 _ , _) } = 0
     damageFromWalker2 wSt record { walker2Attack = just _ } record { walker2Block = just (blockWalker2 _ , _) } = 0
     damageFromWalker2 wSt record { walker2Attack = just _ } _ = walkerSize wSt
+
     calculateDamage : ∀ (a : AttackerInfo pps) (b : BlockerInfo pps a bc) → PlayerState p → PlayerState (opponentOf p) → ℕ
-    calculateDamage a b attacker defender = AttackerInfo.nThopters a + damageFromWalker1 (walker1State attacker) a b + damageFromWalker2 (card2State attacker) a b
+    calculateDamage a b attacker defender = AttackerInfo.nThopters a ∸ proj₁ (BlockerInfo.thopter-thopter-blocks b) + damageFromWalker1 (walker1State attacker) a b + damageFromWalker2 (card2State attacker) a b
+
     takeDamage : ∀ (a : AttackerInfo pps) (b : BlockerInfo pps a bc) → PlayerState p → PlayerState (opponentOf p) → PlayerState (opponentOf p)
     takeDamage a b attacker defender = reduceHealthTotal (calculateDamage a b attacker defender) defender
 
