@@ -9,7 +9,7 @@ open import Data.Fin using (Fin ; #_)
 open import Data.Unit.Base
 open import Data.Empty
 open import Data.Bool hiding (_≤_ ; if_then_else_ ; _∧_ ; _∨_ ; T?)
-open import Data.Product
+open import Data.Product hiding (Σ-syntax ; ∃)
 open import Data.Sum.Base
 open import Data.List hiding (drop)
 open import Data.List.Relation.Unary.Any using (Any; here; there)
@@ -18,10 +18,13 @@ open import Data.List.Relation.Unary.Any using (Any; here; there)
 open import Haskell.Prelude using (if_then_else_ ; case_of_ ; Maybe ; Just ; Nothing ; maybe)
 open import Haskell.Prelude using (Eq ; _==_ ; _&&_ ; _||_)
 open import Haskell.Prim using (magic)
+open import Haskell.Prim.Enum
 open import Haskell.Law.Eq
 -- using (IsLawfulEq ; isEquality )
 open import Haskell.Extra.Dec
+-- open import Haskell.Extra.Erase
 open import Haskell.Extra.Refinement
+-- open import Haskell.Extra.Sigma renaming (_,_ to _,,_)
 -- open import Data.Maybe
 -- open import Relation.Nullary
 -- open import Relation.Binary.Construct.Closure.ReflexiveTransitive
@@ -197,6 +200,12 @@ blockerContextFor ps = record
     ; availableWalker2 = isUntappedWalker (card2State ps)
     }
 
+
+bool2nat : Bool → ℕ
+bool2nat true = 1
+bool2nat false = 0
+{-# COMPILE AGDA2HS bool2nat #-}
+
 -- TODO: make this depend on the rest of the state
 module _ (@0 ac : AttackContext) where
     open AttackContext
@@ -228,10 +237,6 @@ module _ (@0 ac : AttackContext) where
     maybe2nat : {A : Set} → Maybe A → ℕ
     maybe2nat (Just _) = 1
     maybe2nat Nothing = 0
-
-    bool2nat : Bool → ℕ
-    bool2nat true = 1
-    bool2nat false = 0
 
     record BlockerInfo (@0 a : AttackerInfo) (@0 bc : BlockerContext) : Set where
         pattern
@@ -602,8 +607,19 @@ module _ {@0 p} {@0 pps : AttackContext} {@0 bc : BlockerContext} where
     damageFromWalker2 wSt record { walker2Attack = true } _ = walkerSize wSt
     {-# COMPILE AGDA2HS damageFromWalker2 #-}
 
+    blocksThopter : {@0 a : AttackerInfo pps} → Maybe (BlockTarget pps a) → Bool
+    blocksThopter (Just (BlockThopter _)) = true
+    blocksThopter _ = false
+    {-# COMPILE AGDA2HS blocksThopter #-}
+
+    damageFromThopters : (a : AttackerInfo pps) → BlockerInfo pps a bc → ℕ
+    damageFromThopters a b = thoptersAttack a ∸ (thopter₋thopter₋blocks b)
+        ∸ bool2nat (blocksThopter (walker1Block b))
+        ∸ bool2nat (blocksThopter (walker2Block b))
+    {-# COMPILE AGDA2HS damageFromThopters #-}
+
     calculateDamage : ∀ (a : AttackerInfo pps) (b : BlockerInfo pps a bc) → PlayerState p → ℕ
-    calculateDamage a b attacker = AttackerInfo.thoptersAttack a + damageFromWalker1 (walker1State attacker) a b + damageFromWalker2 (card2State attacker) a b
+    calculateDamage a b attacker = damageFromThopters a b + damageFromWalker1 (walker1State attacker) a b + damageFromWalker2 (card2State attacker) a b
     {-# COMPILE AGDA2HS calculateDamage #-}
 
     takeDamage : ∀ (a : AttackerInfo pps) (b : BlockerInfo pps a bc) → PlayerState p → PlayerState (opponentOf p) → PlayerState (opponentOf p)
@@ -612,6 +628,8 @@ module _ {@0 p} {@0 pps : AttackContext} {@0 bc : BlockerContext} where
 
     -- TODO: Handle thopters
     -- TODO: Destroy smaller creatures
+
+-- {-
 
 resolveCombat : ∀ (s : GameState) {@0 pps : AttackContext} {@0 bc : BlockerContext} → (a : AttackerInfo pps) → (b : BlockerInfo pps a bc) → @0 (phase s ≡ Combat (DeclaredBlockers pps a b)) → GameState
 resolveCombat s a b r = withPlayer s (opponent s) (takeDamage a b (stateOfPlayer s (activePlayer s)))
@@ -907,6 +925,23 @@ mkActivateElixir : ∀ {p} {@0 s} → @0 CanActivateElixir p s → Action s p
 mkActivateElixir = λ where (refl , hasMana , canActivate) → AActivateElixir hasMana canActivate
 {-# COMPILE AGDA2HS mkActivateElixir inline #-}
 
+-- possibleAttacks : (ctx : AttackContext) → List (List (AttackerInfo ctx))
+-- possibleAttacks ctx = {! if AttackContext.availableWalker1 ctx then  !}
+--   where
+--     parts : List ℕ × List Bool × List Bool
+--     parts .proj₁ = enumFromTo 0 (AttackContext.availableThopters ctx)
+--     parts .proj₂ .proj₁ = false ∷ (if AttackContext.availableWalker1 ctx then true ∷ [] else [] )
+--     parts .proj₂ .proj₂ = false ∷ (if AttackContext.availableWalker2 ctx then true ∷ [] else [] )
+
+--     -- parts : List (Σ[ n ∈ ℕ] n ≤ availableThopters ctx)
+--             -- thoptersAttack : ℕ
+--             -- @0 thoptersAttackValid : thoptersAttack ≤ availableThopters ac
+--             -- walker1Attack : Bool
+--             -- @0 walker1AttackValid : if walker1Attack then (T (availableWalker1 ac)) else ⊤
+--             -- walker2Attack : Bool
+--             -- @0 walker2AttackValid : if walker2Attack then (T (availableWalker2 ac)) else ⊤
+
+
 -- Either do a ton of pattern-matching or add Dec implementations for all the precondiions
 availableActions : ∀ p s → List (List (Action s p))
 availableActions p s =
@@ -927,7 +962,7 @@ availableActions p s =
 -- availableActions Brigyeetz record { phase = ph ; activePlayer = Ozzie     ; ozzieState = oS ; brigyeetzState = bS ; lastPlayerPassed = lpp } = {!   !}
 -- availableActions Brigyeetz record { phase = ph ; activePlayer = Brigyeetz ; ozzieState = oS ; brigyeetzState = bS ; lastPlayerPassed = lpp } = {!   !}
 
--- {-
+{-
 actionsComplete : ∀ p s (act : Action s p) → Any (Any (_≡ act)) (availableActions p s)
 actionsComplete p s (ACastWalker1 isActive inMain hasMana isInHand) =
     here (mbListAny (canCastWalker1 p s) mkCastWalker1 (isActive , inMain , hasMana , isInHand))

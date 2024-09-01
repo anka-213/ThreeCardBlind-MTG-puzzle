@@ -64,6 +64,10 @@ isTappableWalker
   (OnBattlefield (CWalkerState (WalkerState False False _))) = True
 isTappableWalker _ = False
 
+bool2nat :: Bool -> Natural
+bool2nat True = 1
+bool2nat False = 0
+
 data AttackerInfo = AttackerInfo{thoptersAttack :: Natural,
                                  walker1Attack :: Bool, walker2Attack :: Bool}
                       deriving (Show, Eq, Ord)
@@ -351,10 +355,21 @@ damageFromWalker2 _ (AttackerInfo _ _ True)
   (BlockerInfo _ _ _ _ (Just BlockWalker2)) = 0
 damageFromWalker2 wSt (AttackerInfo _ _ True) _ = walkerSize wSt
 
+blocksThopter :: Maybe BlockTarget -> Bool
+blocksThopter (Just BlockThopter) = True
+blocksThopter _ = False
+
+damageFromThopters :: AttackerInfo -> BlockerInfo -> Natural
+damageFromThopters a b
+  = thoptersAttack a - thopter_thopter_blocks b -
+      bool2nat (blocksThopter (walker1Block b))
+      - bool2nat (blocksThopter (walker2Block b))
+
 calculateDamage ::
                 AttackerInfo -> BlockerInfo -> PlayerState -> Natural
 calculateDamage a b attacker
-  = thoptersAttack a + damageFromWalker1 (walker1State attacker) a b
+  = damageFromThopters a b +
+      damageFromWalker1 (walker1State attacker) a b
       + damageFromWalker2 (card2State attacker) a b
 
 takeDamage ::
