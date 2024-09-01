@@ -591,7 +591,7 @@ reduceHealthTotal n s = record s { healthTotal = healthTotal s ∸ n }
 
 module _ {@0 p} {@0 pps : AttackContext} {@0 bc : BlockerContext} where
     damageFromWalker1 : (CardPosition Walker) → (a : AttackerInfo pps) → BlockerInfo pps a bc → ℕ
-    damageFromWalker1 _   record { walker1Attack = false} b = 0
+    damageFromWalker1 _   record { walker1Attack = false} _ = 0
     damageFromWalker1 _   record { walker1Attack = true } record { thopter₋block₋walker1 = true } = 0
     damageFromWalker1 _   record { walker1Attack = true } record { walker1Block = Just (BlockWalker1 _) } = 0
     damageFromWalker1 _   record { walker1Attack = true } record { walker2Block = Just (BlockWalker1 _) } = 0
@@ -599,7 +599,7 @@ module _ {@0 p} {@0 pps : AttackContext} {@0 bc : BlockerContext} where
     {-# COMPILE AGDA2HS damageFromWalker1 #-}
 
     damageFromWalker2 : ∀ {@0 c} → (CardPosition c) → (a : AttackerInfo pps) → BlockerInfo pps a bc → ℕ
-    damageFromWalker2 _   record { walker2Attack = false} b = 0
+    damageFromWalker2 _   record { walker2Attack = false} _ = 0
     damageFromWalker2 _   record { walker2Attack = true } record { thopter₋block₋walker2 = true } = 0
     damageFromWalker2 _   record { walker2Attack = true } record { walker1Block = Just (BlockWalker2 _) } = 0
     damageFromWalker2 _   record { walker2Attack = true } record { walker2Block = Just (BlockWalker2 _) } = 0
@@ -607,15 +607,30 @@ module _ {@0 p} {@0 pps : AttackContext} {@0 bc : BlockerContext} where
     {-# COMPILE AGDA2HS damageFromWalker2 #-}
 
     damageFromThopters : (a : AttackerInfo pps) → BlockerInfo pps a bc → ℕ
-    damageFromThopters a b = thoptersAttack a ∸ (thopter₋thopter₋blocks b)
+    damageFromThopters a b = thoptersAttack a ∸ thopter₋thopter₋blocks b
     {-# COMPILE AGDA2HS damageFromThopters #-}
 
     calculateDamage : ∀ (a : AttackerInfo pps) (b : BlockerInfo pps a bc) → PlayerState p → ℕ
     calculateDamage a b attacker = damageFromThopters a b + damageFromWalker1 (walker1State attacker) a b + damageFromWalker2 (card2State attacker) a b
     {-# COMPILE AGDA2HS calculateDamage #-}
 
+    killThopters : (a : AttackerInfo pps) → BlockerInfo pps a bc →
+               PlayerState p → PlayerState (opponentOf p) → PlayerState (opponentOf p)
+    killThopters a b attacker defender = record defender { thopters = newThopters }
+      where
+        newThopters : ThopterState
+        newThopters .tappedThopters = defender .tappedThopters
+        newThopters .untappedUnsickThopters = defender .untappedUnsickThopters
+            ∸ thopter₋thopter₋blocks b
+            ∸ bool2nat (thopter₋block₋walker1 b)
+            ∸ bool2nat (thopter₋block₋walker2 b)
+        newThopters .summoningSickThopters = 0 -- Remove sickness after combat
+
+    {-# COMPILE AGDA2HS killThopters #-}
+
     takeDamage : ∀ (a : AttackerInfo pps) (b : BlockerInfo pps a bc) → PlayerState p → PlayerState (opponentOf p) → PlayerState (opponentOf p)
-    takeDamage a b attacker defender = reduceHealthTotal (calculateDamage a b attacker) defender
+    takeDamage a b attacker defender = killThopters a b attacker
+        (reduceHealthTotal (calculateDamage a b attacker) defender)
     {-# COMPILE AGDA2HS takeDamage #-}
 
     -- TODO: Handle thopters
