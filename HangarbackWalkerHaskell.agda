@@ -121,8 +121,9 @@ record ThopterState : Set where
     pattern
     field
         tappedThopters : ℕ
-        untappedUnsickThopters : ℕ
-        summoningSickThopters : ℕ
+        untappedThopters : ℕ
+        -- Thopter summoning sickness is never relevant
+        -- since they are only created after combat
 open ThopterState public
 {-# COMPILE AGDA2HS ThopterState deriving (Show, Eq, Ord) #-}
 
@@ -180,7 +181,7 @@ record AttackContext : Set where
 
 attackContextFor : ∀ {@0 c} → PlayerState c → AttackContext
 attackContextFor ps = record
-    { availableThopters = untappedUnsickThopters ps
+    { availableThopters = untappedThopters ps
     ; availableWalker1 = isTappableWalker (walker1State ps)
     ; availableWalker2 = isTappableWalker (card2State ps)
     }
@@ -195,7 +196,7 @@ record BlockerContext : Set where
 
 blockerContextFor : ∀ {c} → PlayerState c → BlockerContext
 blockerContextFor ps = record
-    { availableThopters = untappedUnsickThopters ps + summoningSickThopters ps
+    { availableThopters = untappedThopters ps
     ; availableWalker1 = isUntappedWalker (walker1State ps)
     ; availableWalker2 = isUntappedWalker (card2State ps)
     }
@@ -356,8 +357,7 @@ withPlayer s Brigyeetz f = record s { brigyeetzState = f (brigyeetzState s) ; la
 noThopters : ThopterState
 noThopters = record
     { tappedThopters = 0
-    ; untappedUnsickThopters = 0
-    ; summoningSickThopters = 0
+    ; untappedThopters = 0
     }
 {-# COMPILE AGDA2HS noThopters #-}
 
@@ -541,7 +541,7 @@ untapCard st = st
 tapAttackers : ∀ {@0 p} {@0 pps : AttackContext} (a : AttackerInfo pps) (s : PlayerState p) → PlayerState p
 tapAttackers a s = record s
     { thopters = record (thopters s)
-        { untappedUnsickThopters = untappedUnsickThopters s ∸ AttackerInfo.thoptersAttack a
+        { untappedThopters = untappedThopters s ∸ AttackerInfo.thoptersAttack a
         ; tappedThopters = tappedThopters s + AttackerInfo.thoptersAttack a
         }
     ; walker1State = if AttackerInfo.walker1Attack a then mapCard tapCard (walker1State s) else walker1State s
@@ -561,8 +561,7 @@ untapPlayer : ∀ {@0 p} → PlayerState p → PlayerState p
 untapPlayer s = record s
     { thopters = record
         { tappedThopters = 0
-        ; untappedUnsickThopters = tappedThopters s + summoningSickThopters s + untappedUnsickThopters s
-        ; summoningSickThopters = 0
+        ; untappedThopters = tappedThopters s + untappedThopters s
         }
     ; walker1State = mapCard untapCard (walker1State s)
     ; card2State = mapCard untapCard (card2State s)
@@ -589,6 +588,10 @@ reduceHealthTotal : ∀ {@0 p} → ℕ → PlayerState p → PlayerState p
 reduceHealthTotal n s = record s { healthTotal = healthTotal s ∸ n }
 {-# COMPILE AGDA2HS reduceHealthTotal #-}
 
+_-_ : ℕ → ℕ → ℕ
+_-_ = _∸_
+infixl 6 _-_
+
 module _ {@0 p} {@0 pps : AttackContext} {@0 bc : BlockerContext} where
     damageFromWalker1 : (CardPosition Walker) → (a : AttackerInfo pps) → BlockerInfo pps a bc → ℕ
     damageFromWalker1 _   record { walker1Attack = false} _ = 0
@@ -614,22 +617,23 @@ module _ {@0 p} {@0 pps : AttackContext} {@0 bc : BlockerContext} where
     calculateDamage a b attacker = damageFromThopters a b + damageFromWalker1 (walker1State attacker) a b + damageFromWalker2 (card2State attacker) a b
     {-# COMPILE AGDA2HS calculateDamage #-}
 
-    killThopters : (a : AttackerInfo pps) → BlockerInfo pps a bc →
-               PlayerState p → PlayerState (opponentOf p) → PlayerState (opponentOf p)
-    killThopters a b attacker defender = record defender { thopters = newThopters }
+    -- killThopters : (a : AttackerInfo pps) → BlockerInfo pps a bc →
+    --            PlayerState p → PlayerState (opponentOf p) → PlayerState (opponentOf p)
+
+    killThopters : {@0 a : AttackerInfo pps} → BlockerInfo pps a bc →
+               PlayerState (opponentOf p) → PlayerState (opponentOf p)
+    killThopters b defender = record defender { thopters = newThopters }
       where
         newThopters : ThopterState
-        newThopters .tappedThopters = defender .tappedThopters
-        newThopters .untappedUnsickThopters = defender .untappedUnsickThopters
-            ∸ thopter₋thopter₋blocks b
-            ∸ bool2nat (thopter₋block₋walker1 b)
-            ∸ bool2nat (thopter₋block₋walker2 b)
-        newThopters .summoningSickThopters = 0 -- Remove sickness after combat
-
+        newThopters = record (defender .thopters) { untappedThopters =
+            defender .untappedThopters
+                - thopter₋thopter₋blocks b
+                - bool2nat (thopter₋block₋walker1 b)
+                - bool2nat (thopter₋block₋walker2 b) }
     {-# COMPILE AGDA2HS killThopters #-}
 
     takeDamage : ∀ (a : AttackerInfo pps) (b : BlockerInfo pps a bc) → PlayerState p → PlayerState (opponentOf p) → PlayerState (opponentOf p)
-    takeDamage a b attacker defender = killThopters a b attacker
+    takeDamage a b attacker defender = killThopters b
         (reduceHealthTotal (calculateDamage a b attacker) defender)
     {-# COMPILE AGDA2HS takeDamage #-}
 

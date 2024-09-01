@@ -90,8 +90,9 @@ record ThopterState : Set where
     pattern
     field
         tappedThopters : ℕ
-        untappedUnsickThopters : ℕ
-        summoningSickThopters : ℕ
+        untappedThopters : ℕ
+        -- Thopter summoning sickness is never relevant
+        -- since they are only created after combat
 
 card2ForPlayer : Player → Card
 card2ForPlayer ozzie = elixir
@@ -131,7 +132,7 @@ record AttackContext : Set where
 
 attackContextFor : ∀ {p} → PlayerState p → AttackContext
 attackContextFor ps = record
-    { availableThopters = untappedUnsickThopters ps
+    { availableThopters = untappedThopters ps
     ; availableWalker1 = isTappableWalker (walker1State ps)
     ; availableWalker2 = isTappableWalker (card2State ps)
     }
@@ -145,7 +146,7 @@ record BlockerContext : Set where
 
 blockerContextFor : ∀ {p} → PlayerState p → BlockerContext
 blockerContextFor ps = record
-    { availableThopters = untappedUnsickThopters ps + summoningSickThopters ps
+    { availableThopters = untappedThopters ps
     ; availableWalker1 = isUntappedWalker (walker1State ps)
     ; availableWalker2 = isUntappedWalker (card2State ps)
     }
@@ -276,8 +277,7 @@ module _ (s : GameState) where
 noThopters : ThopterState
 noThopters = record
     { tappedThopters = 0
-    ; untappedUnsickThopters = 0
-    ; summoningSickThopters = 0
+    ; untappedThopters = 0
     }
 
 ozzieStart : PlayerState ozzie
@@ -472,7 +472,7 @@ untapCard {elixir} st = st
 tapAttackers : ∀ {p} {pps : AttackContext} (a : AttackerInfo pps) (s : PlayerState p) → PlayerState p
 tapAttackers a s = record s
     { thopters = record (thopters s)
-        { untappedUnsickThopters = untappedUnsickThopters s ∸ AttackerInfo.nThopters a
+        { untappedThopters = untappedThopters s ∸ AttackerInfo.nThopters a
         ; tappedThopters = tappedThopters s + AttackerInfo.nThopters a
         }
     ; walker1State = if AttackerInfo.isWalker1Attack a then mapCard tapCard (walker1State s) else walker1State s
@@ -491,8 +491,7 @@ untapPlayer : ∀ {p} → PlayerState p → PlayerState p
 untapPlayer s = record s
     { thopters = record
         { tappedThopters = 0
-        ; untappedUnsickThopters = tappedThopters s + summoningSickThopters s + untappedUnsickThopters s
-        ; summoningSickThopters = 0
+        ; untappedThopters = tappedThopters s + untappedThopters s
         }
     ; walker1State = mapCard untapCard (walker1State s)
     ; card2State = mapCard untapCard (card2State s)

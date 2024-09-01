@@ -37,8 +37,7 @@ opponentOf Ozzie = Brigyeetz
 opponentOf Brigyeetz = Ozzie
 
 data ThopterState = ThopterState{tappedThopters :: Natural,
-                                 untappedUnsickThopters :: Natural,
-                                 summoningSickThopters :: Natural}
+                                 untappedThopters :: Natural}
                       deriving (Show, Eq, Ord)
 
 card2ForPlayer :: Player -> Card
@@ -131,7 +130,7 @@ withPlayer s Brigyeetz f
       False
 
 noThopters :: ThopterState
-noThopters = ThopterState 0 0 0
+noThopters = ThopterState 0 0
 
 ozzieStart :: PlayerState
 ozzieStart = PlayerState 20 False noThopters True InHand InHand []
@@ -273,8 +272,7 @@ tapAttackers :: AttackerInfo -> PlayerState -> PlayerState
 tapAttackers a s
   = PlayerState (healthTotal s) (floatingMana s)
       (ThopterState (tappedThopters (thopters s) + thoptersAttack a)
-         (untappedUnsickThopters (thopters s) - thoptersAttack a)
-         (summoningSickThopters (thopters s)))
+         (untappedThopters (thopters s) - thoptersAttack a))
       (isCityUntapped s)
       (if walker1Attack a then mapCard tapCard (walker1State s) else
          walker1State s)
@@ -299,9 +297,7 @@ untapPlayer :: PlayerState -> PlayerState
 untapPlayer s
   = PlayerState (healthTotal s) (floatingMana s)
       (ThopterState 0
-         (tappedThopters (thopters s) + summoningSickThopters (thopters s) +
-            untappedUnsickThopters (thopters s))
-         0)
+         (tappedThopters (thopters s) + untappedThopters (thopters s)))
       True
       (mapCard untapCard (walker1State s))
       (mapCard untapCard (card2State s))
@@ -334,7 +330,7 @@ reduceHealthTotal n s
 
 damageFromWalker1 ::
                   CardPosition -> AttackerInfo -> BlockerInfo -> Natural
-damageFromWalker1 _ (AttackerInfo _ False _) b = 0
+damageFromWalker1 _ (AttackerInfo _ False _) _ = 0
 damageFromWalker1 _ (AttackerInfo _ True _)
   (BlockerInfo _ True _ _ _) = 0
 damageFromWalker1 _ (AttackerInfo _ True _)
@@ -345,7 +341,7 @@ damageFromWalker1 wSt (AttackerInfo _ True _) _ = walkerSize wSt
 
 damageFromWalker2 ::
                   CardPosition -> AttackerInfo -> BlockerInfo -> Natural
-damageFromWalker2 _ (AttackerInfo _ _ False) b = 0
+damageFromWalker2 _ (AttackerInfo _ _ False) _ = 0
 damageFromWalker2 _ (AttackerInfo _ _ True)
   (BlockerInfo _ _ True _ _) = 0
 damageFromWalker2 _ (AttackerInfo _ _ True)
@@ -365,11 +361,28 @@ calculateDamage a b attacker
       damageFromWalker1 (walker1State attacker) a b
       + damageFromWalker2 (card2State attacker) a b
 
+killThopters :: BlockerInfo -> PlayerState -> PlayerState
+killThopters b defender
+  = PlayerState (healthTotal defender) (floatingMana defender)
+      newThopters
+      (isCityUntapped defender)
+      (walker1State defender)
+      (card2State defender)
+      (deck defender)
+  where
+    newThopters :: ThopterState
+    newThopters
+      = ThopterState (tappedThopters (thopters defender))
+          (untappedThopters (thopters defender) - thopter_thopter_blocks b -
+             bool2nat (thopter_block_walker1 b)
+             - bool2nat (thopter_block_walker2 b))
+
 takeDamage ::
            AttackerInfo ->
              BlockerInfo -> PlayerState -> PlayerState -> PlayerState
 takeDamage a b attacker defender
-  = reduceHealthTotal (calculateDamage a b attacker) defender
+  = killThopters b
+      (reduceHealthTotal (calculateDamage a b attacker) defender)
 
 resolveCombat ::
               GameState -> AttackerInfo -> BlockerInfo -> GameState

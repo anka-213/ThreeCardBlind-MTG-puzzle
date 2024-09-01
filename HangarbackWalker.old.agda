@@ -62,8 +62,7 @@ data PossibleDeck : (p : Player) → Set where
 record ThopterState : Set where
     field
         tappedThopters : ℕ
-        untappedUnsickThopters : ℕ
-        summoningSickThopters : ℕ
+        untappedThopters : ℕ
 
 record PlayerState (p : Player) : Set where
     field
@@ -83,8 +82,7 @@ record GameState : Set where
 noThopters : ThopterState
 noThopters = record
     { tappedThopters = 0
-    ; untappedUnsickThopters = 0
-    ; summoningSickThopters = 0
+    ; untappedThopters = 0
     }
 
 ozzieStart : PlayerState ozzie
