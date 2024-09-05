@@ -620,9 +620,9 @@ module _ {@0 p} {@0 pps : AttackContext} {@0 bc : BlockerContext} where
     -- killThopters : (a : AttackerInfo pps) → BlockerInfo pps a bc →
     --            PlayerState p → PlayerState (opponentOf p) → PlayerState (opponentOf p)
 
-    killThopters : {@0 a : AttackerInfo pps} → BlockerInfo pps a bc →
+    killDefenderThopters : {@0 a : AttackerInfo pps} → BlockerInfo pps a bc →
                PlayerState (opponentOf p) → PlayerState (opponentOf p)
-    killThopters b defender = record defender { thopters = newThopters }
+    killDefenderThopters b defender = record defender { thopters = newThopters }
       where
         newThopters : ThopterState
         newThopters = record (defender .thopters) { untappedThopters =
@@ -630,12 +630,23 @@ module _ {@0 p} {@0 pps : AttackContext} {@0 bc : BlockerContext} where
                 - thopter₋thopter₋blocks b
                 - bool2nat (thopter₋block₋walker1 b)
                 - bool2nat (thopter₋block₋walker2 b) }
-    {-# COMPILE AGDA2HS killThopters #-}
+    {-# COMPILE AGDA2HS killDefenderThopters #-}
 
     takeDamage : ∀ (a : AttackerInfo pps) (b : BlockerInfo pps a bc) → PlayerState p → PlayerState (opponentOf p) → PlayerState (opponentOf p)
-    takeDamage a b attacker defender = killThopters b
-        (reduceHealthTotal (calculateDamage a b attacker) defender)
+    takeDamage a b attacker defender =
+        -- killDefenderWalkers $
+        killDefenderThopters b $
+        reduceHealthTotal (calculateDamage a b attacker) defender
     {-# COMPILE AGDA2HS takeDamage #-}
+
+    killAttackerThopters : {@0 a : AttackerInfo pps} → BlockerInfo pps a bc →
+               PlayerState p → PlayerState p
+    killAttackerThopters b attacker = record attacker { thopters = newThopters }
+      where
+        newThopters : ThopterState
+        newThopters = record (attacker .thopters) { untappedThopters =
+            attacker .tappedThopters - thopter₋thopter₋blocks b }
+    {-# COMPILE AGDA2HS killAttackerThopters #-}
 
     -- TODO: Handle thopters
     -- TODO: Destroy smaller creatures

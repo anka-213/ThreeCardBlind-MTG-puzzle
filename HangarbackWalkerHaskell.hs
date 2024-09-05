@@ -361,8 +361,8 @@ calculateDamage a b attacker
       damageFromWalker1 (walker1State attacker) a b
       + damageFromWalker2 (card2State attacker) a b
 
-killThopters :: BlockerInfo -> PlayerState -> PlayerState
-killThopters b defender
+killDefenderThopters :: BlockerInfo -> PlayerState -> PlayerState
+killDefenderThopters b defender
   = PlayerState (healthTotal defender) (floatingMana defender)
       newThopters
       (isCityUntapped defender)
@@ -381,14 +381,31 @@ takeDamage ::
            AttackerInfo ->
              BlockerInfo -> PlayerState -> PlayerState -> PlayerState
 takeDamage a b attacker defender
-  = killThopters b
+  = killDefenderThopters b
       (reduceHealthTotal (calculateDamage a b attacker) defender)
+
+killAttackerThopters :: BlockerInfo -> PlayerState -> PlayerState
+killAttackerThopters b attacker
+  = PlayerState (healthTotal attacker) (floatingMana attacker)
+      newThopters
+      (isCityUntapped attacker)
+      (walker1State attacker)
+      (card2State attacker)
+      (deck attacker)
+  where
+    newThopters :: ThopterState
+    newThopters
+      = ThopterState (tappedThopters (thopters attacker))
+          (tappedThopters (thopters attacker) - thopter_thopter_blocks b)
 
 resolveCombat ::
               GameState -> AttackerInfo -> BlockerInfo -> GameState
 resolveCombat s a b
-  = withPlayer s (opponent s)
-      (takeDamage a b (stateOfPlayer s (activePlayer s)))
+  = withPlayer
+      (withPlayer s (opponent s)
+         (takeDamage a b (stateOfPlayer s (activePlayer s))))
+      (activePlayer s)
+      (killAttackerThopters b)
 
 endPhase :: GameState -> GameState
 endPhase s0 = go s0 (phase s0)
