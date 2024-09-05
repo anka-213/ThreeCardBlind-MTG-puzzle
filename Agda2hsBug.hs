@@ -81,9 +81,9 @@ activateElixir s
     graveyard2deck InGraveyard = InDeck
     graveyard2deck InDeck = InDeck
     graveyard2deck (OnBattlefield x) = OnBattlefield x
-    walkerPosition :: CardPosition
-    walkerPosition = graveyard2deck (walker1State s)
-    newDeck :: CardPosition -> [Card]
-    newDeck InDeck = [Walker, Elixir]
-    newDeck _ = [Elixir]
+    -- walkerPosition :: CardPosition
+    -- walkerPosition = graveyard2deck (walker1State s)
+    -- newDeck :: CardPosition -> [Card]
+    -- newDeck InDeck = [Walker, Elixir]
+    -- newDeck _ = [Elixir]
 
