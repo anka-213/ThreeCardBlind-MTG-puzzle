@@ -346,6 +346,11 @@ withPlayer s Brigyeetz f = record s { brigyeetzState = f (brigyeetzState s) ; la
 -- withPlayer p f = setPlayerState p (f (stateOfPlayer s p))
 {-# COMPILE AGDA2HS withPlayer #-}
 
+-- Adding this breaks the where-clause of activateElixir:
+-- withActivePlayer : ∀ (s : GameState) → (PlayerState (activePlayer s) → PlayerState (activePlayer s)) → GameState
+-- withActivePlayer s f = withPlayer s (activePlayer s) f
+-- -- {-# COMPILE AGDA2HS withActivePlayer #-}
+
 -- module _ (s : GameState) where
     -- -- sp = stateOfPlayer p
     -- withPlayerP : ∀ (p : Player) (P : PlayerState p → Set) → (P (stateOfPlayer s p)) → ((s : PlayerState p) → P s → PlayerState p) → GameState
@@ -496,6 +501,10 @@ activateWalker2 : ∀ (s : PlayerState Brigyeetz) (@0 hasMana : HasMana s One) (
 activateWalker2 s hasMana ca = record (consumeMana s One hasMana) { card2State = activateWalker (card2State s) ca}
 {-# COMPILE AGDA2HS activateWalker2 #-}
 
+-- Uncommenting this removes newDeck
+-- bugTrigger : (n : ℕ) → ℕ
+-- bugTrigger n = n
+
 activateElixir : ∀ (s : PlayerState Ozzie) → PlayerState Ozzie
 activateElixir s = record s { healthTotal = 5 + healthTotal s ; walker1State = graveyard2deck (walker1State s) ; card2State = InDeck ; deck = newDeck walkerPosition}
   where
@@ -512,6 +521,8 @@ activateElixir s = record s { healthTotal = 5 + healthTotal s ; walker1State = g
     newDeck InDeck = Walker ∷ Elixir ∷ []
     newDeck _ = Elixir ∷ []
 {-# COMPILE AGDA2HS activateElixir #-}
+
+-- {-
 
 data isMain : Phase → Set where
     main1 : isMain PreCombatMain
@@ -654,7 +665,11 @@ module _ {@0 p} {@0 pps : AttackContext} {@0 bc : BlockerContext} where
 -- {-
 
 resolveCombat : ∀ (s : GameState) {@0 pps : AttackContext} {@0 bc : BlockerContext} → (a : AttackerInfo pps) → (b : BlockerInfo pps a bc) → @0 (phase s ≡ Combat (DeclaredBlockers pps a b)) → GameState
-resolveCombat s a b r = withPlayer s (opponent s) (takeDamage a b (stateOfPlayer s (activePlayer s)))
+resolveCombat s a b r =
+    withPlayer
+        (withPlayer s (opponent s) (takeDamage a b (stateOfPlayer s (activePlayer s))))
+        (activePlayer s)
+        (killAttackerThopters b)
 -- TODO: Handle blockers
 -- TODO: Allow choosing order of attacking blockers
 {-# COMPILE AGDA2HS resolveCombat #-}
@@ -1195,4 +1210,6 @@ big₋Walker₋game₋wins s@record
 -- -}
 
 -- -}
+-- -}
+
 -- -}
